@@ -1,0 +1,61 @@
+export type StudentHit = {
+  id: string;
+  name: string;
+  firstName: string;
+  lastName: string;
+  studentIdentifier: string;
+  status: "ACTIVE" | "INACTIVE";
+  className: string;
+  section: string;
+};
+
+export type StudentProfile = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  name: string;
+  studentIdentifier: string;
+  email: string;
+  phone: string | null;
+  status: "ACTIVE" | "INACTIVE";
+  joinDate: string;
+  institution: string;
+  className: string;
+  section: string;
+  classId: string | null;
+  metrics: {
+    attempted: number;
+    averageScore: number;
+    highestScore: number;
+    lowestScore: number;
+    rank: { position: number; of: number } | null;
+  };
+  series: Array<{
+    examName: string;
+    subject: string;
+    date: string;
+    score: number;
+    total: number;
+    percentage: number;
+  }>;
+  subjects: Array<{ name: string; average: number; status: string }>;
+  history: Array<{
+    id: string;
+    examName: string;
+    subject: string;
+    date: string;
+    score: number;
+    total: number;
+    percentage: number;
+    status: string;
+  }>;
+  insights: { summary: string; strengths: string[]; weak: string[] };
+};
+
+export function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}

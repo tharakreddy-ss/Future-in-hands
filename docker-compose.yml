@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mocktest
+      POSTGRES_PASSWORD: mocktest
+      POSTGRES_DB: mocktest
+    ports:
+      - "5432:5432"
+    volumes:
+      - mocktest_pg:/var/lib/postgresql/data
+
+volumes:
+  mocktest_pg:

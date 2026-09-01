@@ -1,26 +1,103 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #080d1c;
+  --foreground: #e8eefc;
+  --card: #11182a;
+  --card-2: #151d31;
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #7c3aed;
+  --accent-2: #9333ea;
+  --blue: #4f6bff;
+  --cyan: #22d3ee;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-jakarta);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+}
+
+.page-canvas {
+  position: relative;
+  isolation: isolate;
+  min-height: 100%;
+  background:
+    radial-gradient(900px 420px at 90% -10%, rgba(124, 58, 237, 0.16), transparent 55%),
+    radial-gradient(700px 380px at 0% 100%, rgba(79, 107, 255, 0.12), transparent 50%),
+    #080d1c;
+}
+
+.page-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse at top, black 20%, transparent 75%);
+  pointer-events: none;
+}
+
+.grid-wash {
+  background-image: none;
+}
+
+.marketing {
+  color: #e8ecf8;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(79, 107, 255, 0.16), transparent 55%),
+    radial-gradient(900px 500px at -10% 20%, rgba(124, 58, 237, 0.16), transparent 50%),
+    #080d1c;
+}
+
+.marketing-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 78%);
+}
+
+.marketing-glass,
+.app-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 80px -48px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(16px);
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, #c4b5fd, #4f6bff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes marketing-dash {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+.marketing-flow-line {
+  stroke-dasharray: 6 8;
+  animation: marketing-dash 1.4s linear infinite;
+}
+
+:focus-visible {
+  outline: 2px solid #7c3aed;
+  outline-offset: 2px;
 }
