@@ -14,7 +14,7 @@ export const studentRepository = {
       include: {
         enrollments: { include: { class: true } },
         attempts: { include: { test: true }, orderBy: { startedAt: "desc" } },
-        user: true,
+        user: { select: { id: true, name: true, email: true, isActive: true } },
         institution: true,
       },
     });

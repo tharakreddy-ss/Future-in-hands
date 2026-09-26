@@ -101,3 +101,38 @@ body {
   outline: 2px solid #7c3aed;
   outline-offset: 2px;
 }
+
+
+/* Keep controls visually identical at rest; motion only appears during interaction. */
+a,
+button,
+[role="button"] {
+  transition-property: transform, filter, box-shadow, border-color, background-color, color;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  button:hover:not(:disabled),
+  [role="button"]:hover,
+  a[href]:hover {
+    transform: translateY(-1px);
+  }
+}
+
+button:active:not(:disabled),
+[role="button"]:active,
+a[href]:active {
+  transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

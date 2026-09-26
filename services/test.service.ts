@@ -19,18 +19,23 @@ export const testService = {
   }) {
     const cls = await db.class.findUnique({ where: { id: input.classId } });
     if (!cls) throw Object.assign(new Error("Class not found"), { status: 404 });
+    const questionIds = [...new Set(input.questionIds ?? [])];
+    const count = await db.question.count({ where: { id: { in: questionIds }, classId: cls.id, institutionId: cls.institutionId } });
+    if (count !== questionIds.length) throw Object.assign(new Error("Questions must belong to this class"), { status: 400 });
     return testRepository.create({
       institutionId: cls.institutionId,
       classId: input.classId,
       syllabusId: input.syllabusId,
       title: input.title,
       durationMinutes: input.durationMinutes,
-      totalQuestions: input.totalQuestions ?? input.questionIds?.length ?? 0,
+      totalQuestions: questionIds.length,
       createdById: input.createdById,
-      questionIds: input.questionIds,
+      questionIds,
     });
   },
-  publish(id: string) {
+  async publish(id: string) {
+    const test = await db.test.findUnique({ where: { id }, include: { _count: { select: { questions: true } } } });
+    if (!test?._count.questions) throw Object.assign(new Error("Add questions before publishing"), { status: 400 });
     return testRepository.publish(id);
   },
   async forStudent(studentId: string) {

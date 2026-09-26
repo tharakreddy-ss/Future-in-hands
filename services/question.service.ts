@@ -17,12 +17,13 @@ export const questionService = {
     difficulty?: Difficulty;
     topicName?: string;
     syllabusText?: string;
+    syllabusId?: string;
     persist?: boolean;
   }) {
     const cls = await db.class.findUnique({ where: { id: input.classId } });
     if (!cls) throw Object.assign(new Error("Class not found"), { status: 404 });
     const syllabus = await db.syllabus.findFirst({
-      where: { classId: input.classId },
+      where: { classId: input.classId, ...(input.syllabusId ? { id: input.syllabusId } : {}) },
       include: { topics: true },
       orderBy: { createdAt: "desc" },
     });
@@ -42,10 +43,13 @@ export const questionService = {
       (draft) => !isDuplicateStem(draft.questionText, existing.map((q) => q.questionText)),
     );
 
-    if (!input.persist) return drafts;
+    const uniqueDrafts: typeof drafts = [];
+    for (const draft of drafts) if (!isDuplicateStem(draft.questionText, uniqueDrafts.map((q) => q.questionText))) uniqueDrafts.push(draft);
+    if (uniqueDrafts.length !== input.count) throw Object.assign(new Error("Generated questions contain duplicates. Please refine the topic and try again."), { status: 422 });
+    if (!input.persist) return uniqueDrafts;
 
     const created = [];
-    for (const draft of drafts) {
+    for (const draft of uniqueDrafts) {
       const topic = syllabus?.topics.find((item) => item.name === draft.topicName);
       created.push(
         await questionRepository.create({

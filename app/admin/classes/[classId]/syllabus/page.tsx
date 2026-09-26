@@ -1,3 +1,5 @@
+import { requireSession } from "@/lib/auth";
+import { requireClassAccess } from "@/lib/resource-access";
 import { syllabusService } from "@/services/syllabus.service";
 import { SyllabusPanel } from "@/components/syllabus/syllabus-panel";
 import { SyllabusForm } from "@/components/syllabus/syllabus-form";
@@ -8,6 +10,7 @@ export default async function ClassSyllabusPage({
   params: Promise<{ classId: string }>;
 }) {
   const { classId } = await params;
+  await requireClassAccess(await requireSession(["INSTITUTION_ADMIN", "TEACHER"]), classId);
   const items = await syllabusService.list(classId);
   return (
     <div className="space-y-6">

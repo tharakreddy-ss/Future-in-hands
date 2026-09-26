@@ -24,9 +24,9 @@ export function MarketingFooter() {
             <a href="mailto:hello@eduassess.ai" className="rounded-full border border-white/10 p-2 hover:text-white" aria-label="Email">
               <Mail className="h-4 w-4" />
             </a>
-            <a href="/" className="rounded-full border border-white/10 p-2 hover:text-white" aria-label="Website">
+            <Link href="/" className="rounded-full border border-white/10 p-2 hover:text-white" aria-label="Website">
               <Globe className="h-4 w-4" />
-            </a>
+            </Link>
           </div>
         </div>
         <div>

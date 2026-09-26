@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import { MotionProvider } from "@/components/motion/motion-provider";
 
 const jakarta = Plus_Jakarta_Sans({
   variable: "--font-jakarta",
@@ -25,7 +26,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       data-scroll-behavior="smooth"
       className={`${jakarta.variable} ${jakarta.className} ${geistMono.variable} h-full scroll-smooth antialiased`}
     >
-      <body className="min-h-full bg-[#080D1C] text-slate-100">{children}</body>
+      <body className="min-h-full bg-[#080D1C] text-slate-100">
+        <MotionProvider>{children}</MotionProvider>
+      </body>
     </html>
   );
 }

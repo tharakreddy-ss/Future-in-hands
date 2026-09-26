@@ -1,3 +1,5 @@
+import { requireSession } from "@/lib/auth";
+import { requireClassAccess } from "@/lib/resource-access";
 import Link from "next/link";
 import { classService } from "@/services/class.service";
 import { notFound } from "next/navigation";
@@ -30,6 +32,7 @@ export default async function ClassLayout({
   params: Promise<{ classId: string }>;
 }) {
   const { classId } = await params;
+  await requireClassAccess(await requireSession(["INSTITUTION_ADMIN", "TEACHER"]), classId);
   const cls = await classService.get(classId);
   if (!cls) notFound();
 

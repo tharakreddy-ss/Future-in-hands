@@ -22,11 +22,10 @@ import {
   UserRound,
   LogOut,
   Menu,
-  Search,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { GlobalSearch } from "@/components/shell/global-search";
 import { NotificationBell } from "@/components/notifications/bell";
 import { createActionFor, type NavItem, type NavKey } from "@/lib/nav";
 import { cn } from "@/lib/utils";
@@ -173,10 +172,7 @@ export function AppShell({
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="relative hidden min-w-0 flex-1 md:block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <Input placeholder="Search classes, exams, students…" className="pl-9" />
-          </div>
+          <GlobalSearch />
           <Link
             href={create.href}
             className="hidden rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#4F6BFF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(124,58,237,0.28)] sm:inline-flex"

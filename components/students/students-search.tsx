@@ -22,9 +22,6 @@ export function StudentsSearch({ basePath }: { basePath: "/admin" | "/teacher" }
 
   useEffect(() => {
     if (!query.trim()) {
-      setHits([]);
-      setSearched(false);
-      setOpen(false);
       return;
     }
     const timer = setTimeout(async () => {
@@ -104,7 +101,7 @@ export function StudentsSearch({ basePath }: { basePath: "/admin" | "/teacher" }
         <Search className="pointer-events-none absolute left-4 top-4 h-5 w-5 text-slate-500" />
         <Input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => { setQuery(e.target.value); if (!e.target.value.trim()) { setHits([]); setSearched(false); setOpen(false); } }}
           onFocus={() => list.length && setOpen(true)}
           onKeyDown={onKey}
           placeholder="Search by Student Name or Student ID..."

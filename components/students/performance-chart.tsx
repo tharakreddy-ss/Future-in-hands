@@ -8,17 +8,17 @@ type Range = "5" | "10" | "30d" | "3m" | "all";
 
 export function PerformanceChart({ series }: { series: StudentProfile["series"] }) {
   const [range, setRange] = useState<Range>("all");
+  const [now] = useState(() => Date.now());
   const [hover, setHover] = useState<number | null>(null);
 
   const points = useMemo(() => {
-    const now = Date.now();
     let rows = series;
     if (range === "5") rows = series.slice(-5);
     if (range === "10") rows = series.slice(-10);
     if (range === "30d") rows = series.filter((row) => now - new Date(row.date).getTime() <= 30 * 86400000);
     if (range === "3m") rows = series.filter((row) => now - new Date(row.date).getTime() <= 90 * 86400000);
     return rows;
-  }, [range, series]);
+  }, [range, series, now]);
 
   const w = 640;
   const h = 240;

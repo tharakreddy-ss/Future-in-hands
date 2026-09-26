@@ -1,3 +1,5 @@
+import { requireSession } from "@/lib/auth";
+import { requireClassAccess } from "@/lib/resource-access";
 import { questionService } from "@/services/question.service";
 import { testService } from "@/services/test.service";
 import { TestCard } from "@/components/tests/test-card/test-card";
@@ -10,6 +12,7 @@ export default async function ClassTestsPage({
   params: Promise<{ classId: string }>;
 }) {
   const { classId } = await params;
+  await requireClassAccess(await requireSession(["INSTITUTION_ADMIN", "TEACHER"]), classId);
   const [tests, questions] = await Promise.all([
     testService.list(classId),
     questionService.list(classId),

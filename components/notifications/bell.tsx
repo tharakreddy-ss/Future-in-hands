@@ -19,9 +19,10 @@ export function NotificationBell() {
   }
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    fetch("/api/notifications", { signal: controller.signal }).then((res) => res.json()).then((data) => { setItems(data.items ?? []); setUnread(data.unread ?? 0); }).catch(() => {});
     const id = setInterval(() => void load(), 30000);
-    return () => clearInterval(id);
+    return () => { controller.abort(); clearInterval(id); };
   }, []);
 
   async function markAll() {

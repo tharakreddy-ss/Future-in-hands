@@ -4,8 +4,9 @@ import { answerSchema } from "@/lib/validators";
 import { json } from "@/lib/utils";
 
 export async function POST(request: Request) {
-  return withAuth(async () => {
+  return withAuth(async (user) => {
     const body = answerSchema.parse(await request.json());
-    return json(await answerService.save(body));
+    if (!user.studentId) return json({ error: "Student profile missing" }, 403);
+    return json(await answerService.save(body, user.studentId));
   }, ["STUDENT"]);
 }

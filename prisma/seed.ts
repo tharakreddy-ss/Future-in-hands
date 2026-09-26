@@ -1,3 +1,5 @@
+import { loadEnvConfig } from "@next/env";
+loadEnvConfig(process.cwd());
 import { Prisma, PrismaClient, type Difficulty } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { createHash } from "crypto";
@@ -330,6 +332,7 @@ Directive Principles of State Policy`;
 
   async function upsertTest(title: string, startAt: Date, endAt: Date, examStatus: "LIVE" | "SCHEDULED") {
     let test = await db.test.findFirst({ where: { classId: classroom!.id, title } });
+    if (test) return test;
     const schedule = {
       durationMinutes: 60,
       totalQuestions: 50,
@@ -392,7 +395,8 @@ Directive Principles of State Policy`;
   const test2 = await upsertTest("Indian Polity Mock Test 2", upcomingStart, upcomingEnd, "SCHEDULED");
 
   async function seedPapers(testId: string) {
-    await db.paperVariation.deleteMany({ where: { testId } });
+    const existingPapers = await db.paperVariation.findMany({ where: { testId }, orderBy: { sortOrder: "asc" } });
+    if (existingPapers.length) return existingPapers;
     const questionIds = questions.map((question) => question.id);
     const papers = [];
     for (let i = 0; i < 3; i += 1) {
@@ -417,12 +421,7 @@ Directive Principles of State Policy`;
     const paper = papers1[index % papers1.length]!;
     await db.testAssignment.upsert({
       where: { testId_studentId: { testId: test1.id, studentId: student.id } },
-      update: {
-        status: "COMPLETED",
-        paperVariationId: paper.id,
-        questionOrderJson: questions.map((q) => q.id),
-        optionOrderJson: {},
-      },
+      update: {},
       create: {
         testId: test1.id,
         studentId: student.id,
@@ -438,12 +437,7 @@ Directive Principles of State Policy`;
     const paper = papers2[index % papers2.length]!;
     await db.testAssignment.upsert({
       where: { testId_studentId: { testId: test2.id, studentId: student.id } },
-      update: {
-        status: "ASSIGNED",
-        paperVariationId: paper.id,
-        questionOrderJson: questions.map((q) => q.id),
-        optionOrderJson: {},
-      },
+      update: {},
       create: {
         testId: test2.id,
         studentId: student.id,
@@ -453,6 +447,14 @@ Directive Principles of State Policy`;
         optionOrderJson: {},
       },
     });
+  }
+
+  const practice = await upsertTest("Live Practice — Indian Polity", liveStart, liveEnd, "LIVE");
+  const practicePapers = await seedPapers(practice.id);
+  for (const [index, student] of students.entries()) {
+    const order = questions.map((q) => q.id).sort(() => Math.random() - 0.5);
+    const options = Object.fromEntries(order.map((id) => [id, ["A", "B", "C", "D"].sort(() => Math.random() - 0.5)]));
+    await db.testAssignment.upsert({ where: { testId_studentId: { testId: practice.id, studentId: student.id } }, update: {}, create: { testId: practice.id, studentId: student.id, paperVariationId: practicePapers[index % practicePapers.length].id, questionOrderJson: order, optionOrderJson: options } });
   }
 
   const scores: Record<string, [number, number]> = {
@@ -467,10 +469,7 @@ Directive Principles of State Policy`;
     const existing = await db.studentTestAttempt.findUnique({
       where: { studentId_testId: { studentId, testId } },
     });
-    if (existing) {
-      await db.studentAnswer.deleteMany({ where: { attemptId: existing.id } });
-      await db.studentTestAttempt.delete({ where: { id: existing.id } });
-    }
+    if (existing) return;
 
     const assignment = await db.testAssignment.findUnique({
       where: { testId_studentId: { testId, studentId } },
@@ -511,13 +510,7 @@ Directive Principles of State Policy`;
     const pair = scores[student.studentIdentifier];
     if (!pair) continue;
     await seedAttempt(student.id, test1.id, pair[0]);
-    const leftover = await db.studentTestAttempt.findUnique({
-      where: { studentId_testId: { studentId: student.id, testId: test2.id } },
-    });
-    if (leftover) {
-      await db.studentAnswer.deleteMany({ where: { attemptId: leftover.id } });
-      await db.studentTestAttempt.delete({ where: { id: leftover.id } });
-    }
+
   }
 
   for (const student of students) {

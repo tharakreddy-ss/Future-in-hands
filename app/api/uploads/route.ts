@@ -1,40 +1,29 @@
 import { withAuth } from "@/lib/with-auth";
 import { errorJson, json } from "@/lib/utils";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { extractText } from "unpdf";
-
+import { extractImageText } from "@/lib/image-ocr";
+import { MAX_UPLOAD_BYTES, validUploadSignature } from "@/lib/upload-validation";
 export async function POST(request: Request) {
   return withAuth(async () => {
+    if (Number(request.headers.get("content-length") ?? 0) > MAX_UPLOAD_BYTES + 65536) return errorJson("Maximum upload size is 10 MB", 413);
     const form = await request.formData();
     const file = form.get("file");
-    if (!(file instanceof File)) return errorJson("File is required", 400);
-    const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-    if (!allowed.includes(file.type)) return errorJson("Unsupported file type", 400);
-
+    if (!(file instanceof File) || !file.size) return errorJson("File is required", 400);
+    if (file.size > MAX_UPLOAD_BYTES) return errorJson("Maximum upload size is 10 MB", 413);
     const bytes = Buffer.from(await file.arrayBuffer());
-    const dir = path.join(process.cwd(), "public", "uploads");
-    await mkdir(dir, { recursive: true });
-    const name = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
-    const filePath = path.join(dir, name);
-    await writeFile(filePath, bytes);
-    const fileUrl = `/uploads/${name}`;
-
+    if (!validUploadSignature(bytes, file.type)) return errorJson("Upload a valid PDF, JPG, PNG or WebP file", 400);
     let content = "";
     if (file.type === "application/pdf") {
       try {
         const result = await extractText(new Uint8Array(bytes));
         content = (Array.isArray(result.text) ? result.text.join("\n") : String(result.text ?? "")).trim();
-      } catch {
-        content = "";
-      }
+      } catch { return errorJson("This PDF could not be read. Upload an unlocked text PDF or paste its content.", 422); }
+    } else {
+      content = await extractImageText(bytes, file.type);
     }
-
-    return json({
-      fileUrl,
-      content:
-        content ||
-        `Uploaded ${file.name}. Edit this extracted text with the topics you want the AI to cover.`,
-    });
+    if (!content.trim()) return errorJson("No readable text found. For scanned PDFs, upload a page as an image or paste the text.", 422);
+    if (content.length > 100000) return errorJson("Please split the document into smaller sections", 413);
+    // The original file is processed in memory; only reviewed syllabus text is persisted on save.
+    return json({ content, requiresReview: true });
   }, ["INSTITUTION_ADMIN", "TEACHER"]);
 }

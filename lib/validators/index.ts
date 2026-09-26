@@ -92,8 +92,8 @@ export const answerSchema = z.object({
   attemptId: z.string().min(1),
   questionId: z.string().min(1),
   selectedAnswer: z.string().nullable(),
-  timeSpentSeconds: z.number().int().optional(),
-  currentQuestionIndex: z.number().int().optional(),
+  timeSpentSeconds: z.number().int().min(0).optional(),
+  currentQuestionIndex: z.number().int().min(0).optional(),
 });
 
 export const examSchema = z.object({

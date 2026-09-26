@@ -17,7 +17,7 @@ async function upsertNotice(input: {
         type: input.type,
       },
     },
-    update: { title: input.title, body: input.body, readAt: null },
+    update: input.type === "EXAM_RESCHEDULED" ? { title: input.title, body: input.body, readAt: null } : {},
     create: input,
   });
 }

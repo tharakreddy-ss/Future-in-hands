@@ -3,13 +3,10 @@ import { cookies } from "next/headers";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { db } from "@/lib/db";
+import { getAuthSecret } from "@/lib/auth-secret";
 import type { SessionUser } from "@/types";
 
 export const SESSION_COOKIE = "examly_session";
-
-function secret() {
-  return new TextEncoder().encode(process.env.AUTH_SECRET ?? "dev-examly-secret-change-in-production");
-}
 
 export async function hashPassword(password: string) {
   return bcrypt.hash(password, 12);
@@ -52,7 +49,7 @@ export async function createSession(user: SessionUser) {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(secret());
+    .sign(getAuthSecret());
 
   const store = await cookies();
   store.set(SESSION_COOKIE, token, {
@@ -74,8 +71,11 @@ export async function getSession(): Promise<SessionUser | null> {
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
   try {
-    const { payload } = await jwtVerify(token, secret());
-    return fromJwtClaims(payload as Record<string, unknown>);
+    const { payload } = await jwtVerify(token, getAuthSecret());
+    const claims = fromJwtClaims(payload as Record<string, unknown>);
+    const user = await db.user.findUnique({ where: { id: claims.id }, include: { institution: true, student: true } });
+    if (!user?.isActive || (user.role !== "SUPER_ADMIN" && user.institution?.status !== "ACTIVE") || (user.role === "STUDENT" && user.student?.status !== "ACTIVE")) return null;
+    return { id: user.id, email: user.email, name: user.name, role: user.role, institutionId: user.institutionId, studentId: user.student?.id ?? null, studentIdentifier: user.student?.studentIdentifier ?? null };
   } catch {
     return null;
   }

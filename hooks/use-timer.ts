@@ -1,30 +1,22 @@
 "use client";
-
-import { useEffect, useState } from "react";
-
+import { useEffect, useRef, useState } from "react";
 export function useTimer(initialSeconds: number, onExpire?: () => void) {
   const [seconds, setSeconds] = useState(initialSeconds);
-
+  const callback = useRef(onExpire);
+  useEffect(() => { callback.current = onExpire; }, [onExpire]);
   useEffect(() => {
-    setSeconds(initialSeconds);
+    if (initialSeconds <= 0) return;
+    const deadline = Date.now() + initialSeconds * 1000;
+    let expired = false;
+    const tick = () => {
+      const next = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setSeconds(next);
+      if (next === 0 && !expired) { expired = true; callback.current?.(); }
+    };
+    tick();
+    const interval = setInterval(tick, 500);
+    document.addEventListener("visibilitychange", tick);
+    return () => { clearInterval(interval); document.removeEventListener("visibilitychange", tick); };
   }, [initialSeconds]);
-
-  useEffect(() => {
-    if (seconds <= 0) return;
-    const id = setInterval(() => {
-      setSeconds((value) => {
-        if (value <= 1) {
-          clearInterval(id);
-          onExpire?.();
-          return 0;
-        }
-        return value - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [seconds === 0, onExpire, initialSeconds]);
-
-  const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
-  const ss = String(seconds % 60).padStart(2, "0");
-  return { seconds, label: `${mm}:${ss}` };
+  return { seconds, label: `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}` };
 }

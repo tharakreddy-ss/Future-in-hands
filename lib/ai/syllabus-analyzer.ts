@@ -14,7 +14,7 @@ function fallbackAnalyze(rawText: string): SyllabusAnalysis {
   }));
 
   return {
-    summary: `Identified ${topics.length} syllabus topics for question generation and coverage analysis.`,
+    summary: `Text-based draft (AI unavailable): ${topics.length} topics. Review the topics before generating questions.`,
     topics: topics.length ? topics : [{ name: "General", weightage: 100, subtopics: [] }],
   };
 }
