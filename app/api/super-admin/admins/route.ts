@@ -10,6 +10,7 @@ export function GET() {
       json(
         await db.user.findMany({
           where: { role: "INSTITUTION_ADMIN" },
+          omit: { passwordHash: true },
           include: { institution: true },
           orderBy: { createdAt: "desc" },
         }),
@@ -30,6 +31,6 @@ export async function POST(request: Request) {
         institutionId: body.institutionId,
       },
     });
-    return json(admin, 201);
+    return json({ id: admin.id, name: admin.name, email: admin.email, institutionId: admin.institutionId }, 201);
   }, ["SUPER_ADMIN"]);
 }

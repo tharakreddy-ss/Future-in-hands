@@ -3,12 +3,9 @@ import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { ROLE_HOME, canAccessPath } from "@/lib/permissions";
 import type { Role } from "@prisma/client";
+import { getAuthSecret } from "@/lib/auth-secret";
 
 const COOKIE = "examly_session";
-
-function secret() {
-  return new TextEncoder().encode(process.env.AUTH_SECRET ?? "dev-examly-secret-change-in-production");
-}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -27,7 +24,7 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    const { payload } = await jwtVerify(token, secret());
+    const { payload } = await jwtVerify(token, getAuthSecret());
     const role = payload.role as Role;
     if (!canAccessPath(role, pathname)) {
       return NextResponse.redirect(new URL(ROLE_HOME[role], request.url));

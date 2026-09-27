@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
 
-const STEPS = ["Select Content", "Configure Questions", "Generate Papers", "Schedule Exam"];
+const STEPS = ["Select Content", "Configure Questions", "Paper Variations", "Review & Schedule"];
 const AI_STAGES = [
   "Analyzing syllabus",
   "Understanding topics",
@@ -81,6 +81,7 @@ export function ExamWizard({
   const [stage, setStage] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [reviewed, setReviewed] = useState(false);
 
   const count = questionCount === 0 ? customCount : questionCount;
   const summary = useMemo(
@@ -90,32 +91,42 @@ export function ExamWizard({
 
   async function upload(file: File) {
     setUploading(true);
-    const form = new FormData();
-    form.set("file", file);
-    const res = await fetch("/api/uploads", { method: "POST", body: form });
-    const data = await res.json();
-    setContent(data.content ?? "");
-    setUploading(false);
+    setError(""); setReviewed(false);
+    try {
+      const form = new FormData(); form.set("file", file);
+      const res = await fetch("/api/uploads", { method: "POST", body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Upload failed");
+      setContent(data.content ?? "");
+    } catch (e) { setError(e instanceof Error ? e.message : "Upload failed. Please retry."); }
+    finally { setUploading(false); }
   }
 
   async function analyze() {
     if (content.trim().length < 8) return;
     setAnalyzing(true);
+    try {
     const res = await fetch("/api/ai/analyze-syllabus", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rawText: content }),
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Analysis failed");
     setTopics((data.topics ?? []).map((topic: { name: string }) => topic.name));
-    setAnalyzing(false);
+    } catch (e) { setError(e instanceof Error ? e.message : "Analysis failed"); }
+    finally { setAnalyzing(false); }
   }
 
   async function submit() {
     setError("");
+    if (source === "syllabus" && !syllabusId) { setError("Select a syllabus or choose another source"); return; }
+    if (source === "topic" && topicText.trim().length < 8) { setError("Enter a topic or syllabus of at least 8 characters"); return; }
+    if ((source === "image" || source === "document") && (!reviewed || content.trim().length < 8)) { setError("Review the extracted content and confirm it before scheduling"); return; }
     setPending(true);
     setStage(0);
     const timer = setInterval(() => setStage((s) => Math.min(s + 1, AI_STAGES.length - 1)), 700);
+    try {
     const res = await fetch("/api/exams", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -145,6 +156,8 @@ export function ExamWizard({
     }
     router.push(`${portal}/exams/${data.id}`);
     router.refresh();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not create exam. Please retry."); }
+    finally { clearInterval(timer); setPending(false); }
   }
 
   const pill = (active: boolean) =>
@@ -237,7 +250,7 @@ export function ExamWizard({
                 <div className="space-y-3">
                   <Input
                     type="file"
-                    accept={source === "image" ? ".jpg,.jpeg,.png,.webp" : ".pdf,.doc,.docx,.txt"}
+                    accept={source === "image" ? ".jpg,.jpeg,.png,.webp" : ".pdf"}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) void upload(file);
@@ -259,9 +272,10 @@ export function ExamWizard({
                   <textarea
                     className={`${fieldClass} h-36`}
                     value={content}
-                    onChange={(e) => setContent(e.target.value)}
+                    onChange={(e) => { setContent(e.target.value); setReviewed(false); }}
                     placeholder="Extracted text appears here. You can edit it before analysis."
                   />
+                  <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} /> I reviewed the extracted text for accuracy</label>
                   <Button variant="secondary" onClick={() => void analyze()} disabled={analyzing || content.length < 8}>
                     {analyzing ? "Analyzing…" : "Analyze with AI"}
                   </Button>
@@ -278,7 +292,7 @@ export function ExamWizard({
               ) : null}
               {source === "bank" ? (
                 <p className="text-sm text-slate-400">
-                  Continue to pick from the bank, or generate a new paper and attach bank questions after review.
+                  Use saved class questions, prioritizing less-used items. If there are too few matching questions, an AI provider is required to fill the gap.
                 </p>
               ) : null}
             </Card>
@@ -315,7 +329,7 @@ export function ExamWizard({
               <h2 className="text-lg font-semibold text-white">Generate multiple question papers</h2>
               <p className="text-sm text-slate-400">
                 Class strength: <strong className="text-white">{strength} students</strong>. Shuffle questions and MCQ
-                options, keep difficulty balanced, and assign papers round-robin.
+                options and randomly distribute paper versions across students.
               </p>
               <label className="text-sm text-slate-400">Paper versions</label>
               <Input
@@ -326,7 +340,7 @@ export function ExamWizard({
                 onChange={(e) => setVariationCount(Number(e.target.value))}
               />
               <div className="flex flex-wrap gap-2">
-                {Array.from({ length: variationCount }).map((_, i) => (
+                {Array.from({ length: Math.max(0, Math.min(8, variationCount || 0)) }).map((_, i) => (
                   <span key={i} className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm text-slate-200">
                     Paper {String.fromCharCode(65 + i)}
                   </span>
@@ -369,6 +383,7 @@ export function ExamWizard({
         </motion.div>
       </AnimatePresence>
 
+      {error ? <p role="alert" className="text-sm text-red-300">{error}</p> : null}
       <div className="flex justify-between">
         <Button variant="secondary" disabled={step === 0} onClick={() => setStep(step - 1)}>
           Back

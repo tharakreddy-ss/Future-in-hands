@@ -1,3 +1,5 @@
+import { requireSession } from "@/lib/auth";
+import { requireClassAccess } from "@/lib/resource-access";
 import { analyticsService } from "@/services/analytics.service";
 import { ScoreBars } from "@/components/analytics/score-bars";
 import { Card } from "@/components/ui/card";
@@ -9,6 +11,7 @@ export default async function ClassPerformancePage({
   params: Promise<{ classId: string }>;
 }) {
   const { classId } = await params;
+  await requireClassAccess(await requireSession(["INSTITUTION_ADMIN", "TEACHER"]), classId);
   const data = await analyticsService.classPerformance(classId);
 
   return (

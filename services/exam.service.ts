@@ -1,3 +1,4 @@
+import { attemptRemaining } from "@/lib/attempt-deadline";
 import { db } from "@/lib/db";
 import { examStatusFromWindow, examWindow, validateSchedule } from "@/lib/exam-window";
 import { paperLabel, shuffle } from "@/lib/shuffle";
@@ -47,6 +48,8 @@ export const examService = {
       where: { status: "PUBLISHED", ...(institutionId ? { institutionId } : {}) },
       select: { id: true, status: true, startAt: true, endAt: true, examStatus: true },
     });
+    const running = await db.studentTestAttempt.findMany({ where: { status: "IN_PROGRESS", ...(institutionId ? { test: { institutionId } } : {}) }, include: { test: true } });
+    for (const attempt of running) if (attemptRemaining(attempt) <= 0) await resultService.grade(attempt.id);
     const now = new Date();
     for (const test of tests) {
       const window = examWindow({ ...test, now });
@@ -109,45 +112,31 @@ export const examService = {
       throw Object.assign(new Error("Class not found"), { status: 404 });
     }
 
+    if (!cls.enrollments.length) throw Object.assign(new Error("Add active students to this class before scheduling"), { status: 400 });
+    if (input.syllabusId && !(await db.syllabus.findFirst({ where: { id: input.syllabusId, classId: cls.id } }))) throw Object.assign(new Error("Syllabus not found in this class"), { status: 404 });
+    let sourceId = input.syllabusId;
     if (input.topicText || input.content) {
-      await questionService.generate({
-        classId: input.classId,
-        count: Math.max(input.questionCount, 10),
-        difficulty: input.mixed ? undefined : input.difficulty,
-        persist: true,
-        topicName: input.topicText,
-        syllabusText: input.content ?? input.topicText,
-      });
-    } else {
-      const existing = await db.question.count({ where: { classId: input.classId } });
-      if (existing < input.questionCount) {
-        await questionService.generate({
-          classId: input.classId,
-          count: input.questionCount - existing + 5,
-          difficulty: input.mixed ? undefined : input.difficulty,
-          persist: true,
-        });
-      }
+      const source = await db.syllabus.create({ data: { institutionId: cls.institutionId, classId: cls.id, title: input.topicText?.slice(0, 120) || input.title, content: input.content || input.topicText!, inputType: "TEXT", createdById: input.createdById } });
+      sourceId = source.id;
     }
-
-    const pool = await db.question.findMany({
-      where: {
-        classId: input.classId,
-        ...(input.syllabusId ? { syllabusId: input.syllabusId } : {}),
-        ...(input.difficulty && !input.mixed ? { difficulty: input.difficulty } : {}),
-      },
-    });
-    if (pool.length < 1) throw Object.assign(new Error("No questions available"), { status: 400 });
-    const selectedCount = Math.min(input.questionCount, pool.length);
-    const examBank = shuffle(pool).slice(0, selectedCount);
+    const poolWhere = { classId: cls.id, ...(sourceId ? { syllabusId: sourceId } : {}), ...(input.difficulty && !input.mixed ? { difficulty: input.difficulty } : {}) };
+    let pool = await db.question.findMany({ where: poolWhere, orderBy: { usageCount: "asc" } });
+    if (pool.length < input.questionCount) {
+      await questionService.generate({ classId: cls.id, syllabusId: sourceId, count: input.questionCount - pool.length, difficulty: input.mixed ? undefined : input.difficulty, persist: true, topicName: input.topicText, syllabusText: input.content || input.topicText });
+      pool = await db.question.findMany({ where: poolWhere, orderBy: { usageCount: "asc" } });
+    }
+    if (pool.length < input.questionCount) throw Object.assign(new Error(`Only ${pool.length} matching questions available; ${input.questionCount} requested.`), { status: 422 });
+    const selectedCount = input.questionCount;
+    const examBank = shuffle(pool).sort((a, b) => a.usageCount - b.usageCount).slice(0, selectedCount);
     const bankIds = examBank.map((question) => question.id);
+    const variations = Math.max(1, Math.min(input.variationCount, 8, cls.enrollments.length));
 
     const test = await db.$transaction(async (tx) => {
       const created = await tx.test.create({
         data: {
           institutionId: input.institutionId,
           classId: input.classId,
-          syllabusId: input.syllabusId,
+          syllabusId: sourceId,
           title: input.title,
           durationMinutes: input.durationMinutes,
           totalQuestions: selectedCount,
@@ -156,7 +145,7 @@ export const examService = {
           examDate: input.startAt,
           startAt: input.startAt,
           endAt: input.endAt,
-          variationCount: Math.max(1, input.variationCount),
+          variationCount: variations,
           publishedAt: new Date(),
           createdById: input.createdById,
         },
@@ -171,7 +160,7 @@ export const examService = {
         })),
       });
 
-      const variationCount = Math.max(1, Math.min(input.variationCount, 8));
+      const variationCount = variations;
       const papers = [];
       for (let i = 0; i < variationCount; i += 1) {
         const ordered = shuffle(bankIds);
@@ -187,7 +176,7 @@ export const examService = {
         );
       }
 
-      const students = cls.enrollments;
+      const students = shuffle(cls.enrollments);
       for (const [index, enrollment] of students.entries()) {
         const paper = papers[index % papers.length]!;
         const questionIds = shuffle(paper.questionIdsJson as string[]);
@@ -208,6 +197,7 @@ export const examService = {
         });
       }
 
+      await tx.question.updateMany({ where: { id: { in: bankIds } }, data: { usageCount: { increment: 1 } } });
       return created;
     });
 
@@ -219,6 +209,7 @@ export const examService = {
   async reschedule(testId: string, startAt: Date, endAt: Date, durationMinutes: number) {
     const test = await db.test.findUnique({ where: { id: testId } });
     if (!test) throw Object.assign(new Error("Exam not found"), { status: 404 });
+    if (await db.studentTestAttempt.count({ where: { testId } })) throw Object.assign(new Error("An exam with existing attempts cannot be rescheduled"), { status: 409 });
     validateSchedule(startAt, endAt, durationMinutes);
     const updated = await db.test.update({
       where: { id: testId },

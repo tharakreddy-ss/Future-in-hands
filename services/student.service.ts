@@ -56,32 +56,36 @@ export const studentService = {
     password?: string;
     institutionId: string;
     classId?: string;
+    photoKey?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    guardianName?: string;
+    guardianPhone?: string;
+    address?: string;
+    academicYear?: string;
+    rollNumber?: string;
   }) {
+    if (input.classId && !(await db.class.findFirst({ where: { id: input.classId, institutionId: input.institutionId } }))) throw Object.assign(new Error("Class not found"), { status: 404 });
     const names = input.firstName
       ? { firstName: input.firstName, lastName: input.lastName ?? "" }
       : splitName(input.name ?? "Student");
     const institution = await db.institution.findUnique({ where: { id: input.institutionId } });
     const identifier = await nextStudentIdentifier(input.institutionId, institution?.studentIdPrefix ?? "STU");
-    const user = await db.user.create({
-      data: {
-        name: fullName(names.firstName, names.lastName),
-        email: input.email.toLowerCase(),
-        passwordHash: await hashPassword(input.password || "Student@123"),
-        role: "STUDENT",
-        institutionId: input.institutionId,
-      },
+    const passwordHash = await hashPassword(input.password || "Student@123");
+    const created = await db.$transaction(async (tx) => {
+      const user = await tx.user.create({ data: { name: fullName(names.firstName, names.lastName), email: input.email.toLowerCase(), passwordHash, role: "STUDENT", institutionId: input.institutionId } });
+      const student = await tx.student.create({ data: {
+        userId: user.id, institutionId: input.institutionId,
+        studentIdentifier: `${identifier}-${user.id.slice(-8).toUpperCase()}`,
+        firstName: names.firstName, lastName: names.lastName, email: input.email.toLowerCase(), phone: input.phone,
+        photoKey: input.photoKey, dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined,
+        gender: input.gender, guardianName: input.guardianName, guardianPhone: input.guardianPhone,
+        address: input.address, academicYear: input.academicYear, rollNumber: input.rollNumber,
+      } });
+      if (input.classId) await tx.classStudent.create({ data: { classId: input.classId, studentId: student.id } });
+      return student;
     });
-    const student = await studentRepository.create({
-      userId: user.id,
-      institutionId: input.institutionId,
-      studentIdentifier: identifier,
-      firstName: names.firstName,
-      lastName: names.lastName,
-      email: input.email.toLowerCase(),
-      phone: input.phone,
-    });
-    if (input.classId) await studentRepository.enroll(input.classId, student.id);
-    return studentRepository.get(student.id);
+    return studentRepository.get(created.id);
   },
   enroll(classId: string, studentId: string) {
     return studentRepository.enroll(classId, studentId);
@@ -181,6 +185,7 @@ export const studentService = {
       studentIdentifier: student.studentIdentifier,
       email: student.email,
       phone: student.phone,
+      photoUrl: student.photoKey ? `/api/students/${student.id}/photo` : null,
       status: student.status,
       joinDate: student.createdAt.toISOString(),
       institution: student.institution.name,

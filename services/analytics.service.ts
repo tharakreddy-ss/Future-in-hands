@@ -68,6 +68,7 @@ export const analyticsService = {
         select: { percentage: true },
       }),
     ]);
+    const assignments = await db.testAssignment.count({ where: { test: { institutionId } } });
     return {
       classes,
       students,
@@ -76,7 +77,7 @@ export const analyticsService = {
       liveExams,
       attempts,
       averageScore: average(submitted.map((row) => row.percentage)),
-      completionRate: students ? Math.round((attempts / Math.max(students, 1)) * 100) : 0,
+      completionRate: assignments ? Math.min(100, Math.round((attempts / assignments) * 100)) : 0,
     };
   },
 

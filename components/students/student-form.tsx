@@ -1,39 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Camera, CheckCircle2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
+type Classroom = { id: string; name: string; academicYear: string; groupName: string; section: string | null };
+
 export function StudentForm({ classId }: { classId?: string }) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [pending, setPending] = useState(false);
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setPending(true);
-    await fetch("/api/students", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, classId }),
-    });
-    setPending(false);
-    window.location.reload();
-  }
-
-  return (
-    <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
-      <div>
-        <label className="mb-1 block text-sm text-slate-400">Name</label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} required />
-      </div>
-      <div>
-        <label className="mb-1 block text-sm text-slate-400">Email</label>
-        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      </div>
-      <Button type="submit" disabled={pending}>
-        {pending ? "Adding…" : "Add student"}
-      </Button>
-    </form>
-  );
+  const router = useRouter(); const [classes, setClasses] = useState<Classroom[]>([]); const [year, setYear] = useState("1st Year"); const [photo, setPhoto] = useState<File | null>(null); const [preview, setPreview] = useState(""); const [pending, setPending] = useState(false); const [error, setError] = useState(""); const [success, setSuccess] = useState("");
+  useEffect(() => { fetch("/api/classes").then((r) => r.json()).then((value) => { const rows = Array.isArray(value) ? value : []; setClasses(rows); const current = rows.find((row: Classroom) => row.id === classId); if (current) setYear(current.academicYear); }).catch(() => {}); }, [classId]);
+  const relevantClasses = useMemo(() => classes.filter((row) => row.academicYear === year), [classes, year]);
+  async function submit(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); setPending(true); setError(""); setSuccess(""); const form = new FormData(event.currentTarget); if (photo) form.set("photo", photo); try { const response = await fetch("/api/students", { method: "POST", body: form }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? "Could not add the student."); setSuccess(`${data.studentIdentifier ?? "Student"} created successfully. Login details are ready.`); event.currentTarget.reset(); setPhoto(null); router.refresh(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not add the student."); } finally { setPending(false); } }
+  return <form onSubmit={(event) => void submit(event)} className="space-y-5"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">Student admission</p><h2 className="mt-1 text-xl font-semibold text-white">Add a student</h2><p className="mt-1 text-sm text-slate-500">Create the student ID, login and academic profile in one place.</p></div>
+    <div className="grid gap-5 lg:grid-cols-[180px_1fr]"><label className="group flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-[#0B1020] p-4 text-center hover:border-violet-400/45"><span className="relative grid h-20 w-20 place-items-center overflow-hidden rounded-full bg-violet-500/12 text-violet-300">{preview ? <img src={preview} alt="Student preview" className="h-full w-full object-cover" /> : <Camera className="h-7 w-7" />}</span><span className="mt-3 text-sm font-medium text-white">Student photo</span><span className="mt-1 text-xs text-slate-500">JPG, PNG or WebP · 5 MB</span><input type="file" name="photo" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => { const selected = event.target.files?.[0] ?? null; if (preview) URL.revokeObjectURL(preview); setPhoto(selected); setPreview(selected ? URL.createObjectURL(selected) : ""); }} /></label>
+      <div className="grid gap-4 sm:grid-cols-2"><Field label="First name"><Input name="firstName" required /></Field><Field label="Last name"><Input name="lastName" required /></Field><Field label="Email address"><Input name="email" type="email" required placeholder="student@example.com" /></Field><Field label="Mobile number" optional><Input name="phone" inputMode="tel" placeholder="+91…" /></Field><Field label="Initial password"><Input name="password" type="password" minLength={6} required placeholder="Minimum 6 characters" /></Field><Field label="Roll number" optional><Input name="rollNumber" placeholder="e.g. 24CSE001" /></Field></div></div>
+    <div className="rounded-2xl border border-white/[0.08] bg-[#0B1020]/45 p-4"><h3 className="font-medium text-white">Academic placement</h3><div className="mt-4 grid gap-4 sm:grid-cols-2"><Field label="Academic year"><select name="academicYear" value={year} onChange={(event) => setYear(event.target.value)} className="input-select">{YEARS.map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="Classroom"><select name="classId" defaultValue={classId ?? ""} required className="input-select"><option value="" disabled>Select a class</option>{relevantClasses.map((row) => <option key={row.id} value={row.id}>{row.name} · {row.groupName}{row.section ? ` · ${row.section}` : ""}</option>)}</select></Field></div></div>
+    <div className="grid gap-4 sm:grid-cols-2"><Field label="Date of birth" optional><Input name="dateOfBirth" type="date" /></Field><Field label="Gender" optional><select name="gender" defaultValue="" className="input-select"><option value="">Select</option><option>Female</option><option>Male</option><option>Other</option><option>Prefer not to say</option></select></Field><Field label="Parent / guardian name" optional><Input name="guardianName" /></Field><Field label="Guardian phone" optional><Input name="guardianPhone" inputMode="tel" /></Field><Field label="Address" optional><textarea name="address" rows={3} maxLength={500} className="input-select sm:col-span-2" /></Field></div>
+    {error ? <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</p> : null}{success ? <p className="flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200"><CheckCircle2 className="h-4 w-4" />{success}</p> : null}<div className="flex justify-end"><Button type="submit" disabled={pending}>{pending ? "Adding student…" : <><UserPlus className="h-4 w-4" /> Add student</>}</Button></div></form>;
 }
+function Field({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) { return <label className="space-y-1.5 text-sm text-slate-300"><span>{label} {optional ? <span className="text-xs text-slate-600">optional</span> : <span className="text-rose-300">*</span>}</span>{children}</label>; }

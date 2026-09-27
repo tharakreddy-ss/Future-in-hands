@@ -12,7 +12,7 @@ export default async function ResultPage({
   const { attemptId } = await params;
   const user = await requireSession(["STUDENT"]);
   const result = await resultService.getByAttempt(attemptId);
-  if (!result || result.studentId !== user.studentId) notFound();
+  if (!result || result.status !== "SUBMITTED" || result.studentId !== user.studentId) notFound();
 
   return (
     <div className="max-w-2xl space-y-6">

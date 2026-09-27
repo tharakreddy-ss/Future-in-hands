@@ -29,16 +29,15 @@ export default async function StudentDashboardPage() {
 
   return (
     <PageFade>
-      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300">Student portal</p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Welcome, {user.name}</h1>
-      <Stagger className="mt-6 grid gap-4 md:grid-cols-5">
+      <div className="relative overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[linear-gradient(115deg,rgba(41,29,98,0.7),rgba(13,19,37,0.42))] px-5 py-6 sm:px-7"><div className="pointer-events-none absolute -right-8 -top-16 h-40 w-40 rounded-full bg-cyan-400/15 blur-3xl" /><p className="relative text-xs font-semibold uppercase tracking-[0.2em] text-violet-200">Student portal</p><h1 className="relative mt-2 text-3xl font-semibold tracking-tight text-white">Welcome back, {user.name}</h1><p className="relative mt-2 max-w-xl text-sm text-slate-400">Your next mock test, performance and learning progress are all ready here.</p></div>
+      <Stagger className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StaggerItem><StatCard label="My Classes" value={classes.length} /></StaggerItem>
         <StaggerItem><StatCard label="Available Tests" value={assignments.length} /></StaggerItem>
         <StaggerItem><StatCard label="Tests Attempted" value={stats.attempted} /></StaggerItem>
         <StaggerItem><StatCard label="Average Score" value={`${Math.round(stats.averageScore)}%`} /></StaggerItem>
         <StaggerItem><StatCard label="Highest Score" value={`${Math.round(stats.highestScore)}%`} /></StaggerItem>
       </Stagger>
-      <h2 className="mt-10 text-lg font-semibold">Available tests</h2>
+      <div className="mt-10 flex items-end justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">Assessment queue</p><h2 className="mt-1 text-xl font-semibold text-white">Available tests</h2></div><Link href="/student/tests" className="text-sm font-medium text-violet-300 hover:text-white">View all tests</Link></div>
       <ul className="mt-4 space-y-3">
         {assignments.length === 0 ? (
           <li>

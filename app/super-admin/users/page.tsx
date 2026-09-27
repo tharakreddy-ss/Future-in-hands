@@ -1,9 +1,10 @@
+import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/layout/skeleton";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 export default async function SuperAdminUsersPage() {
+  await requireSession(["SUPER_ADMIN"]);
   const users = await db.user.findMany({
     where: { role: { not: "SUPER_ADMIN" } },
     include: { institution: true },

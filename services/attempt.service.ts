@@ -1,3 +1,4 @@
+import { attemptRemaining } from "@/lib/attempt-deadline";
 import { attemptRepository } from "@/repositories/attempt.repository";
 import { db } from "@/lib/db";
 import { resultService } from "@/services/result.service";
@@ -15,7 +16,7 @@ export const attemptService = {
     const attempt = await attemptRepository.get(id);
     if (!attempt) return null;
     await examService.syncWindows(attempt.test.institutionId);
-    const remaining = this.remainingUntilClose(attempt.test, attempt.remainingSeconds);
+    const remaining = attemptRemaining(attempt);
     if (
       (examWindow(attempt.test) === "CLOSED" || remaining <= 0) &&
       attempt.status === "IN_PROGRESS"
@@ -73,8 +74,10 @@ export const attemptService = {
         where: { id: assignment.id },
         data: { status: "STARTED" },
       });
-      return tx.studentTestAttempt.create({
-        data: {
+      return tx.studentTestAttempt.upsert({
+        where: { studentId_testId: { studentId, testId: assignment.testId } },
+        update: {},
+        create: {
           studentId,
           testId: assignment.testId,
           assignmentId: assignment.id,

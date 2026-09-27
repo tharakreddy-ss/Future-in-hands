@@ -1,3 +1,4 @@
+import { requireSession } from "@/lib/auth";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { analyticsService } from "@/services/analytics.service";
 import { institutionService } from "@/services/institution.service";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 export default async function SuperAdminDashboard() {
+  await requireSession(["SUPER_ADMIN"]);
   const [stats, institutions] = await Promise.all([
     analyticsService.platform(),
     institutionService.list(),

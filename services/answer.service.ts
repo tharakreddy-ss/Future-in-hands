@@ -1,4 +1,4 @@
-import { attemptRepository } from "@/repositories/attempt.repository";
+import { attemptRemaining } from "@/lib/attempt-deadline";
 import { db } from "@/lib/db";
 import { examWindow } from "@/lib/exam-window";
 import { resultService } from "@/services/result.service";
@@ -10,40 +10,59 @@ export const answerService = {
     selectedAnswer: string | null;
     timeSpentSeconds?: number;
     currentQuestionIndex?: number;
-  }) {
-    const attempt = await db.studentTestAttempt.findUnique({
+  }, studentId: string) {
+    const outcome = await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM student_test_attempts WHERE id = ${input.attemptId} FOR UPDATE`;
+    const attempt = await tx.studentTestAttempt.findUnique({
       where: { id: input.attemptId },
-      include: { test: true },
+      include: { test: true, assignment: true },
     });
-    if (!attempt || attempt.status !== "IN_PROGRESS") {
+    if (!attempt || attempt.studentId !== studentId) {
+      throw Object.assign(new Error("Attempt not found"), { status: 404 });
+    }
+    if (attempt.status !== "IN_PROGRESS" || !attempt.assignment || attempt.assignment.studentId !== studentId) {
       throw Object.assign(new Error("Attempt is locked"), { status: 400 });
     }
     const window = examWindow(attempt.test);
-    if (window === "CLOSED") {
-      await resultService.grade(attempt.id);
-      throw Object.assign(new Error("This exam is closed"), { status: 403 });
-    }
+    if (window === "CLOSED" || attemptRemaining(attempt) <= 0) return { expired: true } as const;
     if (window === "LOCKED") {
       throw Object.assign(new Error("This exam is locked"), { status: 403 });
     }
-    const question = await db.question.findUnique({ where: { id: input.questionId } });
-    const isCorrect =
-      input.selectedAnswer == null ? null : input.selectedAnswer === question?.correctAnswer;
+    const assignedQuestionIds = attempt.assignment.questionOrderJson as string[];
+    if (!assignedQuestionIds.includes(input.questionId)) {
+      throw Object.assign(new Error("Question is not part of this exam paper"), { status: 403 });
+    }
+    const question = await tx.question.findFirst({
+      where: { id: input.questionId, tests: { some: { testId: attempt.testId } } },
+      select: { optionsJson: true },
+    });
+    if (!question) throw Object.assign(new Error("Question not found"), { status: 404 });
+    const optionKeys = (question.optionsJson as Array<{ key: string }>).map((option) => option.key);
+    if (input.selectedAnswer != null && !optionKeys.includes(input.selectedAnswer)) {
+      throw Object.assign(new Error("Invalid answer option"), { status: 400 });
+    }
+    if (input.currentQuestionIndex != null && (!Number.isInteger(input.currentQuestionIndex) || input.currentQuestionIndex < 0 || input.currentQuestionIndex >= assignedQuestionIds.length)) {
+      throw Object.assign(new Error("Invalid question position"), { status: 400 });
+    }
 
-    const saved = await attemptRepository.saveAnswer({
-      attemptId: input.attemptId,
-      questionId: input.questionId,
-      selectedAnswer: input.selectedAnswer,
-      isCorrect,
-      timeSpentSeconds: input.timeSpentSeconds,
+    await tx.studentAnswer.upsert({
+      where: { attemptId_questionId: { attemptId: input.attemptId, questionId: input.questionId } },
+      create: { attemptId: input.attemptId, questionId: input.questionId, selectedAnswer: input.selectedAnswer },
+      update: { selectedAnswer: input.selectedAnswer, answeredAt: new Date() },
     });
 
     if (input.currentQuestionIndex != null) {
-      await db.studentTestAttempt.update({
+      await tx.studentTestAttempt.update({
         where: { id: input.attemptId },
         data: { currentQuestionIndex: input.currentQuestionIndex },
       });
     }
-    return saved;
+    return { saved: true, questionId: input.questionId } as const;
+    });
+    if ("expired" in outcome) {
+      await resultService.grade(input.attemptId);
+      throw Object.assign(new Error("Time is up. Your saved answers have been submitted."), { status: 403 });
+    }
+    return outcome;
   },
 };

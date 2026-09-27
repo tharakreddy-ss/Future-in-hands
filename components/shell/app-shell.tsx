@@ -22,11 +22,10 @@ import {
   UserRound,
   LogOut,
   Menu,
-  Search,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { GlobalSearch } from "@/components/shell/global-search";
 import { NotificationBell } from "@/components/notifications/bell";
 import { createActionFor, type NavItem, type NavKey } from "@/lib/nav";
 import { cn } from "@/lib/utils";
@@ -106,6 +105,7 @@ export function AppShell({
 
   const nav = (
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
+      <p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">Workspace</p>
       {items.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = ICONS[item.icon] ?? LayoutDashboard;
@@ -117,7 +117,7 @@ export function AppShell({
             className={cn(
               "flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition",
               active
-                ? "bg-white/10 text-white shadow-[inset_0_0_0_1px_rgba(124,58,237,0.35)]"
+                ? "bg-gradient-to-r from-violet-500/20 to-indigo-500/10 text-white shadow-[inset_3px_0_0_#a78bfa,inset_0_0_0_1px_rgba(124,58,237,0.28)]"
                 : "text-slate-400 hover:bg-white/5 hover:text-white",
             )}
           >
@@ -131,13 +131,13 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen bg-[#080D1C] text-slate-100">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-white/8 bg-[#0B1020] lg:flex">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-white/[0.08] bg-[linear-gradient(180deg,#10182b_0%,#090e1d_74%)] lg:flex">
         <div className="px-4 py-6">
           <BrandLockup />
         </div>
         {nav}
         <div className="border-t border-white/8 p-3">
-          <div className="mb-2 rounded-xl border border-white/8 bg-white/5 px-3 py-3">
+          <div className="mb-2 rounded-xl border border-white/10 bg-white/[0.045] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
             <p className="truncate text-sm font-medium text-white">{userName}</p>
             <p className="text-xs text-slate-500">{roleLabel}</p>
           </div>
@@ -164,7 +164,7 @@ export function AppShell({
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/8 bg-[#080D1C]/80 px-4 py-3 backdrop-blur-xl md:px-6">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/[0.08] bg-[#090e1d]/75 px-4 py-3 backdrop-blur-2xl md:px-6">
           <button
             type="button"
             className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 lg:hidden"
@@ -173,10 +173,7 @@ export function AppShell({
           >
             <Menu className="h-5 w-5" />
           </button>
-          <div className="relative hidden min-w-0 flex-1 md:block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-            <Input placeholder="Search classes, exams, students…" className="pl-9" />
-          </div>
+          <GlobalSearch />
           <Link
             href={create.href}
             className="hidden rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#4F6BFF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(124,58,237,0.28)] sm:inline-flex"
@@ -185,7 +182,7 @@ export function AppShell({
           </Link>
           {role === "STUDENT" ? <NotificationBell /> : <Bell className="h-5 w-5 text-slate-400" />}
         </header>
-        <main className="page-canvas flex-1 p-4 md:p-8">{children}</main>
+        <main className="page-canvas flex-1 p-4 md:p-7 xl:p-8">{children}</main>
       </div>
     </div>
   );

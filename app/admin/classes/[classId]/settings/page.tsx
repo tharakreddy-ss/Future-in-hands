@@ -1,6 +1,8 @@
+import { requireSession } from "@/lib/auth";
+import { requireClassAccess } from "@/lib/resource-access";
 import { classService } from "@/services/class.service";
 import { notFound } from "next/navigation";
-import { Card } from "@/components/ui/card";
+import { ResourceForm } from "@/components/management/resource-form";
 
 export default async function ClassSettingsPage({
   params,
@@ -8,18 +10,9 @@ export default async function ClassSettingsPage({
   params: Promise<{ classId: string }>;
 }) {
   const { classId } = await params;
+  await requireClassAccess(await requireSession(["INSTITUTION_ADMIN", "TEACHER"]), classId);
   const cls = await classService.get(classId);
   if (!cls) notFound();
 
-  return (
-    <Card className="max-w-xl space-y-2">
-      <h2 className="font-semibold">Classroom settings</h2>
-      <p className="text-sm text-slate-500">Name</p>
-      <p>{cls.name}</p>
-      <p className="text-sm text-slate-500">Subject</p>
-      <p>{cls.subject}</p>
-      <p className="text-sm text-slate-500">Description</p>
-      <p>{cls.description ?? "—"}</p>
-    </Card>
-  );
+  return <ResourceForm title="Classroom settings" endpoint={`/api/classes/${classId}`} method="PATCH" fields={[{ name: "name", label: "Class name", value: cls.name }, { name: "subject", label: "Subject", value: cls.subject }, { name: "description", label: "Description", value: cls.description || "", optional: true }]} />;
 }

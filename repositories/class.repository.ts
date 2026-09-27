@@ -7,7 +7,7 @@ export const classRepository = {
       include: {
         _count: { select: { enrollments: true, tests: true, questions: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ academicYear: "asc" }, { groupName: "asc" }, { name: "asc" }],
     });
   },
   get(id: string) {
@@ -25,6 +25,10 @@ export const classRepository = {
     name: string;
     subject: string;
     description?: string;
+    academicYear: string;
+    groupName: string;
+    section?: string;
+    program?: string;
     createdById?: string;
   }) {
     return db.class.create({ data });

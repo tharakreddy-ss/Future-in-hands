@@ -1,7 +1,9 @@
+import { requireSession } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Badge } from "@/components/ui/badge";
 
 export default async function SubscriptionsPage() {
+  await requireSession(["SUPER_ADMIN"]);
   const rows = await db.institution.findMany({ orderBy: { createdAt: "desc" } });
   return (
     <div>

@@ -1,8 +1,10 @@
+import { requireSession } from "@/lib/auth";
 import { analyticsService } from "@/services/analytics.service";
 import { ScoreBars } from "@/components/analytics/score-bars";
 import { StatCard } from "@/components/dashboard/stat-card";
 
 export default async function SuperAdminAnalyticsPage() {
+  await requireSession(["SUPER_ADMIN"]);
   const stats = await analyticsService.platform();
   return (
     <div>

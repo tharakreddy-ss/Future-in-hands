@@ -35,6 +35,10 @@ export const classSchema = z.object({
   name: z.string().min(2),
   subject: z.string().min(2),
   description: z.string().optional(),
+  academicYear: z.enum(["1st Year", "2nd Year", "3rd Year", "4th Year"]),
+  groupName: z.string().min(1).max(80),
+  section: z.string().max(40).optional(),
+  program: z.string().max(100).optional(),
 });
 
 export const studentSchema = z.object({
@@ -45,6 +49,13 @@ export const studentSchema = z.object({
   phone: z.string().optional(),
   password: z.string().min(6).optional(),
   classId: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.string().max(32).optional(),
+  guardianName: z.string().max(120).optional(),
+  guardianPhone: z.string().max(32).optional(),
+  address: z.string().max(500).optional(),
+  academicYear: z.enum(["1st Year", "2nd Year", "3rd Year", "4th Year"]).optional(),
+  rollNumber: z.string().max(40).optional(),
 });
 
 export const studentUpdateSchema = z.object({
@@ -92,8 +103,8 @@ export const answerSchema = z.object({
   attemptId: z.string().min(1),
   questionId: z.string().min(1),
   selectedAnswer: z.string().nullable(),
-  timeSpentSeconds: z.number().int().optional(),
-  currentQuestionIndex: z.number().int().optional(),
+  timeSpentSeconds: z.number().int().min(0).optional(),
+  currentQuestionIndex: z.number().int().min(0).optional(),
 });
 
 export const examSchema = z.object({

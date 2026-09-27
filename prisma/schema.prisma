@@ -126,6 +126,7 @@ model Institution {
   tests         Test[]
   aiUsage       AiUsage[]
   notifications Notification[]
+  subjects      Subject[]
 
   @@map("institutions")
 }
@@ -160,6 +161,14 @@ model Student {
   lastName           String        @map("last_name")
   email              String
   phone              String?
+  photoKey           String?       @map("photo_key")
+  dateOfBirth        DateTime?     @map("date_of_birth")
+  gender             String?
+  guardianName       String?       @map("guardian_name")
+  guardianPhone      String?       @map("guardian_phone")
+  address            String?
+  academicYear       String?       @map("academic_year")
+  rollNumber         String?       @map("roll_number")
   status             StudentStatus @default(ACTIVE)
   createdAt          DateTime      @default(now()) @map("created_at")
   updatedAt          DateTime      @updatedAt @map("updated_at")
@@ -172,6 +181,7 @@ model Student {
   notifications Notification[]
 
   @@index([institutionId])
+  @@index([institutionId, academicYear])
   @@map("students")
 }
 
@@ -181,6 +191,10 @@ model Class {
   name          String
   description   String?
   subject       String
+  academicYear  String   @default("1st Year") @map("academic_year")
+  groupName     String   @default("General") @map("group_name")
+  section       String?
+  program       String?
   createdById   String?  @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -191,9 +205,86 @@ model Class {
   syllabuses  Syllabus[]
   questions   Question[]
   tests       Test[]
+  subjects    ClassSubject[]
 
   @@index([institutionId])
+  @@index([institutionId, academicYear, groupName])
   @@map("classes")
+}
+
+model Subject {
+  id                  String   @id @default(cuid())
+  institutionId       String   @map("institution_id")
+  name                String
+  code                String?
+  gradeLevel          String?  @map("grade_level")
+  curriculum          String?
+  academicYear        String?  @map("academic_year")
+  description         String?
+  syllabusFileKey     String?  @map("syllabus_file_key")
+  syllabusFileName    String?  @map("syllabus_file_name")
+  syllabusPagesJson   Json     @default("[]") @map("syllabus_pages_json")
+  materialFileKey     String?  @map("material_file_key")
+  materialFileName    String?  @map("material_file_name")
+  materialPagesJson   Json     @default("[]") @map("material_pages_json")
+  createdById         String?  @map("created_by")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  institution Institution    @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  classes     ClassSubject[]
+  units       SubjectUnit[]
+  tests       Test[]
+
+  @@unique([institutionId, name])
+  @@index([institutionId, gradeLevel])
+  @@map("subjects")
+}
+
+model ClassSubject {
+  id        String @id @default(cuid())
+  classId   String @map("class_id")
+  subjectId String @map("subject_id")
+
+  class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, subjectId])
+  @@map("class_subjects")
+}
+
+model SubjectUnit {
+  id          String   @id @default(cuid())
+  subjectId   String   @map("subject_id")
+  name        String
+  order       Int      @default(0)
+  pageStart   Int?     @map("page_start")
+  pageEnd     Int?     @map("page_end")
+  weightage   Float    @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  subject Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  topics  SubjectTopic[]
+
+  @@unique([subjectId, name])
+  @@index([subjectId, order])
+  @@map("subject_units")
+}
+
+model SubjectTopic {
+  id        String   @id @default(cuid())
+  unitId    String   @map("unit_id")
+  name      String
+  order     Int      @default(0)
+  pageStart Int?     @map("page_start")
+  pageEnd   Int?     @map("page_end")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  unit SubjectUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([unitId, name])
+  @@index([unitId, order])
+  @@map("subject_topics")
 }
 
 model ClassStudent {
@@ -287,6 +378,7 @@ model Test {
   id               String     @id @default(cuid())
   institutionId    String     @map("institution_id")
   classId          String     @map("class_id")
+  subjectId        String?    @map("subject_id")
   syllabusId       String?    @map("syllabus_id")
   title            String
   durationMinutes  Int        @default(30) @map("duration_minutes")
@@ -305,6 +397,7 @@ model Test {
 
   institution  Institution          @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   class        Class                @relation(fields: [classId], references: [id], onDelete: Cascade)
+  subject      Subject?             @relation(fields: [subjectId], references: [id], onDelete: SetNull)
   syllabus     Syllabus?            @relation(fields: [syllabusId], references: [id], onDelete: SetNull)
   createdBy    User?                @relation("TestCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   questions    TestQuestion[]

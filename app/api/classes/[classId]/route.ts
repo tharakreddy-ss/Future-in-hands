@@ -12,3 +12,14 @@ export async function GET(_: Request, context: { params: Promise<{ classId: stri
     return json(cls);
   }, ["INSTITUTION_ADMIN", "SUPER_ADMIN"]);
 }
+
+export async function PATCH(request: Request, context: { params: Promise<{ classId: string }> }) {
+  const { classId } = await context.params;
+  return withAuth(async (user) => {
+    const { requireClassAccess } = await import("@/lib/resource-access");
+    const { classSchema } = await import("@/lib/validators");
+    const { db } = await import("@/lib/db");
+    await requireClassAccess(user, classId);
+    return json(await db.class.update({ where: { id: classId }, data: classSchema.parse(await request.json()) }));
+  }, ["INSTITUTION_ADMIN"]);
+}

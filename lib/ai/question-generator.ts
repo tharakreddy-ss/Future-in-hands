@@ -1,27 +1,20 @@
 import type { Difficulty } from "@prisma/client";
+import { z } from "zod";
 import { createAIProvider } from "@/lib/ai/ai.factory";
 import { validateQuestionDraft } from "@/lib/ai/question-validator";
 import type { GeneratedQuestionDraft } from "@/types";
 
 const KEYS = ["A", "B", "C", "D"] as const;
-
-function template(topic: string, difficulty: Difficulty, index: number): GeneratedQuestionDraft {
-  return {
-    questionText: `Which of the following best describes ${topic} in the Indian Constitution? (variant ${index + 1})`,
-    difficulty,
-    explanation: `${topic} is a core unit in this syllabus.`,
-    correctAnswer: "A",
-    options: [
-      { key: "A", text: `${topic} is a constitutionally recognized concept in this unit.` },
-      { key: "B", text: `${topic} is unrelated to Indian polity.` },
-      { key: "C", text: `${topic} applies only to state legislation.` },
-      { key: "D", text: `${topic} was repealed by the 42nd Amendment.` },
-    ],
-    topicName: topic,
-    subtopic: topic,
-    syllabusReference: topic,
-  };
-}
+const draftSchema = z.object({
+  questionText: z.string().min(8),
+  difficulty: z.enum(["EASY", "MEDIUM", "HARD"]),
+  explanation: z.string(),
+  correctAnswer: z.enum(KEYS),
+  options: z.array(z.object({ key: z.enum(KEYS), text: z.string().min(1) })).length(4),
+  topicName: z.string().optional(),
+  subtopic: z.string().optional(),
+  syllabusReference: z.string().optional(),
+});
 
 export async function generateQuestions(input: {
   syllabusText?: string;
@@ -29,12 +22,10 @@ export async function generateQuestions(input: {
   count: number;
   difficulty?: Difficulty;
 }): Promise<GeneratedQuestionDraft[]> {
-  const difficulty = input.difficulty ?? "MEDIUM";
+  const difficulty = input.difficulty ?? "MIXED: approximately 30% EASY, 50% MEDIUM, 20% HARD";
   const provider = createAIProvider();
   if (provider.name === "heuristic") {
-    return Array.from({ length: input.count }, (_, i) =>
-      template(input.topics[i % Math.max(input.topics.length, 1)] || "General", difficulty, i),
-    ).filter(validateQuestionDraft);
+    throw Object.assign(new Error("AI question generation is unavailable. Configure an AI provider key before generating questions."), { status: 503 });
   }
 
   const content = await provider.complete([
@@ -55,19 +46,16 @@ export async function generateQuestions(input: {
 
   const match = content.match(/\[[\s\S]*\]/);
   if (!match) {
-    return Array.from({ length: input.count }, (_, i) =>
-      template(input.topics[i % input.topics.length] ?? "General", difficulty, i),
-    );
+    throw Object.assign(new Error("The AI provider returned an invalid response. Please try generating the questions again."), { status: 502 });
   }
   try {
-    const parsed = JSON.parse(match[0]) as GeneratedQuestionDraft[];
+    const parsed = z.array(draftSchema).parse(JSON.parse(match[0])) as GeneratedQuestionDraft[];
     const valid = parsed.filter(validateQuestionDraft);
-    return valid.length ? valid : Array.from({ length: input.count }, (_, i) =>
-      template(input.topics[i % input.topics.length] ?? "General", difficulty, i),
-    );
+    if (valid.length !== input.count) {
+      throw Object.assign(new Error(`The AI returned ${valid.length} valid questions; ${input.count} were requested. Please review the syllabus and retry.`), { status: 502 });
+    }
+    return valid;
   } catch {
-    return Array.from({ length: input.count }, (_, i) =>
-      template(input.topics[i % input.topics.length] ?? "General", difficulty, i),
-    );
+    throw Object.assign(new Error("The AI response did not contain valid questions. Please try again or use the question bank."), { status: 502 });
   }
 }

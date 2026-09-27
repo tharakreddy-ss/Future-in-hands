@@ -1,3 +1,5 @@
+import { requireSession } from "@/lib/auth";
+import { requireClassAccess } from "@/lib/resource-access";
 import { questionService } from "@/services/question.service";
 import { QuestionCard } from "@/components/questions/question-card";
 import { GenerateQuestionsButton } from "@/components/questions/generate-button";
@@ -8,6 +10,7 @@ export default async function ClassQuestionsPage({
   params: Promise<{ classId: string }>;
 }) {
   const { classId } = await params;
+  await requireClassAccess(await requireSession(["INSTITUTION_ADMIN", "TEACHER"]), classId);
   const questions = await questionService.list(classId);
 
   return (

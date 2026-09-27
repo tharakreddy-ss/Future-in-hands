@@ -73,7 +73,7 @@ export function StudentProfileView({
             Back to Students
           </Link>
           <div className="mt-4 flex items-center gap-4">
-            <StudentAvatar name={profile.name} size="lg" />
+            <StudentAvatar name={profile.name} photoUrl={profile.photoUrl} size="lg" />
             <div>
               <h1 className="text-3xl font-semibold tracking-tight text-white">{profile.name}</h1>
               <p className="mt-1 text-sm text-slate-400">{profile.studentIdentifier}</p>

@@ -22,12 +22,13 @@ export class OpenAIProvider implements AIProvider {
   async complete(messages: AIMessage[]) {
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
+      signal: AbortSignal.timeout(90000),
       headers: {
         Authorization: `Bearer ${this.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
         temperature: 0.4,
         messages,
       }),
