@@ -17,6 +17,7 @@ export type StudentProfile = {
   studentIdentifier: string;
   email: string;
   phone: string | null;
+  photoUrl: string | null;
   status: "ACTIVE" | "INACTIVE";
   joinDate: string;
   institution: string;

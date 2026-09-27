@@ -102,6 +102,22 @@ body {
   outline-offset: 2px;
 }
 
+.input-select {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.75rem;
+  background: #0b1020;
+  padding: 0.625rem 0.75rem;
+  color: #e8eefc;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.input-select:focus {
+  border-color: rgba(167, 139, 250, 0.65);
+  box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.15);
+}
+
 
 /* Keep controls visually identical at rest; motion only appears during interaction. */
 a,

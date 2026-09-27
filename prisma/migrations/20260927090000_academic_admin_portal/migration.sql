@@ -1,0 +1,14 @@
+ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "photo_key" TEXT;
+ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "date_of_birth" TIMESTAMP(3);
+ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "gender" TEXT;
+ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "guardian_name" TEXT;
+ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "guardian_phone" TEXT;
+ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "address" TEXT;
+ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "academic_year" TEXT;
+ALTER TABLE "students" ADD COLUMN IF NOT EXISTS "roll_number" TEXT;
+ALTER TABLE "classes" ADD COLUMN IF NOT EXISTS "academic_year" TEXT NOT NULL DEFAULT '1st Year';
+ALTER TABLE "classes" ADD COLUMN IF NOT EXISTS "group_name" TEXT NOT NULL DEFAULT 'General';
+ALTER TABLE "classes" ADD COLUMN IF NOT EXISTS "section" TEXT;
+ALTER TABLE "classes" ADD COLUMN IF NOT EXISTS "program" TEXT;
+CREATE INDEX IF NOT EXISTS "students_institution_id_academic_year_idx" ON "students"("institution_id", "academic_year");
+CREATE INDEX IF NOT EXISTS "classes_institution_id_academic_year_group_name_idx" ON "classes"("institution_id", "academic_year", "group_name");

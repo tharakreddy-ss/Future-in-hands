@@ -1,40 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { FileText, ImageIcon, Lightbulb, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export function SyllabusForm({ classId }: { classId: string }) {
-  const [title, setTitle] = useState("Indian Polity syllabus");
-  const [content, setContent] = useState("");
-  const [pending, setPending] = useState(false);
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setPending(true);
-    await fetch("/api/syllabuses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ classId, title, content, inputType: "TEXT" }),
-    });
-    setPending(false);
-    window.location.reload();
-  }
-
-  return (
-    <form onSubmit={submit} className="space-y-3 rounded-2xl border bg-white p-4">
-      <h3 className="font-semibold">Analyze syllabus</h3>
-      <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-      <textarea
-        className="h-32 w-full rounded-lg border border-slate-200 p-3 text-sm"
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder="Paste topic list or full syllabus text"
-        required
-      />
-      <Button type="submit" disabled={pending}>
-        {pending ? "Analyzing…" : "Save & analyze"}
-      </Button>
-    </form>
-  );
+const MODES = [{ id: "TOPIC", label: "Topic", icon: Lightbulb, hint: "Add a chapter or topic" }, { id: "TEXT", label: "Paste text", icon: FileText, hint: "Paste a complete syllabus" }, { id: "IMAGE", label: "Image", icon: ImageIcon, hint: "Extract text from a photo" }, { id: "PDF", label: "PDF", icon: Upload, hint: "Extract text from a document" }] as const;
+export function SyllabusForm({ classId, compact = false }: { classId: string; compact?: boolean }) {
+  const [mode, setMode] = useState<(typeof MODES)[number]["id"]>("TEXT"); const [title, setTitle] = useState(""); const [content, setContent] = useState(""); const [file, setFile] = useState<File | null>(null); const [pending, setPending] = useState(false); const [error, setError] = useState(""); const [review, setReview] = useState(false);
+  async function extract() { if (!file) return; setPending(true); setError(""); try { const form = new FormData(); form.set("file", file); const response = await fetch("/api/uploads", { method: "POST", body: form }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? "Could not read this file."); setContent(data.content); setReview(true); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not read this file."); } finally { setPending(false); } }
+  async function submit(event: React.FormEvent) { event.preventDefault(); setPending(true); setError(""); try { const response = await fetch("/api/syllabuses", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ classId, title: title || `${mode === "TOPIC" ? "Topic" : "Syllabus"} input`, content, inputType: mode }) }); const data = await response.json(); if (!response.ok) throw new Error(data.error ?? "Could not save syllabus."); setTitle(""); setContent(""); setFile(null); setReview(false); window.location.reload(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save syllabus."); setPending(false); } }
+  return <form onSubmit={(event) => void submit(event)} className={`space-y-4 rounded-2xl border border-white/[0.08] bg-[#11182A] p-5 ${compact ? "" : "shadow-[0_18px_50px_-32px_rgba(0,0,0,0.7)]"}`}><div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-300">Syllabus intake</p><h3 className="mt-1 text-lg font-semibold text-white">Add subject source</h3><p className="mt-1 text-sm text-slate-500">Every source is reviewed before it is used for questions.</p></div><div className="grid gap-2 sm:grid-cols-4">{MODES.map(({ id, label, icon: Icon, hint }) => <button key={id} type="button" onClick={() => { setMode(id); setFile(null); setReview(false); }} className={`rounded-xl border p-3 text-left ${mode === id ? "border-violet-400/45 bg-violet-500/10" : "border-white/[0.08] bg-[#0B1020] hover:border-white/20"}`}><Icon className={`h-4 w-4 ${mode === id ? "text-violet-300" : "text-slate-500"}`} /><span className="mt-2 block text-sm font-medium text-white">{label}</span><span className="mt-0.5 block text-[11px] text-slate-500">{hint}</span></button>)}</div><label className="block text-sm text-slate-300">Title <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder={mode === "TOPIC" ? "e.g. Matrices and determinants" : "e.g. Unit 1 syllabus"} className="mt-1.5" /></label>{mode === "IMAGE" || mode === "PDF" ? <div className="space-y-3"><label className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-white/15 bg-[#0B1020] p-4"><Upload className="h-5 w-5 text-violet-300" /><span className="min-w-0 flex-1"><span className="block text-sm font-medium text-white">{file ? file.name : `Choose ${mode === "PDF" ? "a PDF" : "an image"}`}</span><span className="block text-xs text-slate-500">Up to 10 MB. Text is extracted securely for your review.</span></span><input className="sr-only" type="file" accept={mode === "PDF" ? "application/pdf,.pdf" : "image/jpeg,image/png,image/webp"} onChange={(event) => { setFile(event.target.files?.[0] ?? null); setReview(false); }} /></label><Button type="button" variant="secondary" onClick={() => void extract()} disabled={!file || pending}>{pending ? "Reading file…" : "Extract text for review"}</Button></div> : <label className="block text-sm text-slate-300">{mode === "TOPIC" ? "Topic details" : "Syllabus content"}<textarea value={content} onChange={(event) => setContent(event.target.value)} rows={compact ? 5 : 8} placeholder={mode === "TOPIC" ? "Learning objectives, chapters, marks pattern or reference material…" : "Paste topics, chapters, learning outcomes and prescribed content…"} required className="input-select mt-1.5" /></label>}{review ? <label className="block text-sm text-slate-300">Review extracted content <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={8} required className="input-select mt-1.5" /></label> : null}{error ? <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-200">{error}</p> : null}<div className="flex justify-end"><Button type="submit" disabled={pending || !content.trim()}>{pending ? "Saving…" : "Save source for review"}</Button></div></form>;
 }

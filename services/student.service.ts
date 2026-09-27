@@ -56,6 +56,14 @@ export const studentService = {
     password?: string;
     institutionId: string;
     classId?: string;
+    photoKey?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    guardianName?: string;
+    guardianPhone?: string;
+    address?: string;
+    academicYear?: string;
+    rollNumber?: string;
   }) {
     if (input.classId && !(await db.class.findFirst({ where: { id: input.classId, institutionId: input.institutionId } }))) throw Object.assign(new Error("Class not found"), { status: 404 });
     const names = input.firstName
@@ -70,6 +78,9 @@ export const studentService = {
         userId: user.id, institutionId: input.institutionId,
         studentIdentifier: `${identifier}-${user.id.slice(-8).toUpperCase()}`,
         firstName: names.firstName, lastName: names.lastName, email: input.email.toLowerCase(), phone: input.phone,
+        photoKey: input.photoKey, dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined,
+        gender: input.gender, guardianName: input.guardianName, guardianPhone: input.guardianPhone,
+        address: input.address, academicYear: input.academicYear, rollNumber: input.rollNumber,
       } });
       if (input.classId) await tx.classStudent.create({ data: { classId: input.classId, studentId: student.id } });
       return student;
@@ -174,6 +185,7 @@ export const studentService = {
       studentIdentifier: student.studentIdentifier,
       email: student.email,
       phone: student.phone,
+      photoUrl: student.photoKey ? `/api/students/${student.id}/photo` : null,
       status: student.status,
       joinDate: student.createdAt.toISOString(),
       institution: student.institution.name,

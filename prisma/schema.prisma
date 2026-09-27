@@ -161,6 +161,14 @@ model Student {
   lastName           String        @map("last_name")
   email              String
   phone              String?
+  photoKey           String?       @map("photo_key")
+  dateOfBirth        DateTime?     @map("date_of_birth")
+  gender             String?
+  guardianName       String?       @map("guardian_name")
+  guardianPhone      String?       @map("guardian_phone")
+  address            String?
+  academicYear       String?       @map("academic_year")
+  rollNumber         String?       @map("roll_number")
   status             StudentStatus @default(ACTIVE)
   createdAt          DateTime      @default(now()) @map("created_at")
   updatedAt          DateTime      @updatedAt @map("updated_at")
@@ -173,6 +181,7 @@ model Student {
   notifications Notification[]
 
   @@index([institutionId])
+  @@index([institutionId, academicYear])
   @@map("students")
 }
 
@@ -182,6 +191,10 @@ model Class {
   name          String
   description   String?
   subject       String
+  academicYear  String   @default("1st Year") @map("academic_year")
+  groupName     String   @default("General") @map("group_name")
+  section       String?
+  program       String?
   createdById   String?  @map("created_by")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -195,6 +208,7 @@ model Class {
   subjects    ClassSubject[]
 
   @@index([institutionId])
+  @@index([institutionId, academicYear, groupName])
   @@map("classes")
 }
 

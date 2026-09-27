@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { initials } from "@/components/students/types";
 
-export function StudentAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {
+export function StudentAvatar({ name, photoUrl, size = "md" }: { name: string; photoUrl?: string | null; size?: "sm" | "md" | "lg" }) {
   return (
     <span
       className={cn(
@@ -11,7 +11,7 @@ export function StudentAvatar({ name, size = "md" }: { name: string; size?: "sm"
         size === "lg" && "h-16 w-16 text-lg",
       )}
     >
-      {initials(name)}
+      {photoUrl ? <img src={photoUrl} alt="" className="h-full w-full object-cover" /> : initials(name)}
     </span>
   );
 }

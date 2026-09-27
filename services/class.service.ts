@@ -17,6 +17,10 @@ export const classService = {
     name: string;
     subject: string;
     description?: string;
+    academicYear: string;
+    groupName: string;
+    section?: string;
+    program?: string;
     createdById?: string;
   }) {
     return classRepository.create(input);
