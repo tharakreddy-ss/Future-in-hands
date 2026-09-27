@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BookOpen, FileText, ImageIcon, Library, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/skeleton";
+import { PremiumBeam } from "@/components/effects/library-effects";
 
 const METHODS = [
   { href: "syllabus", title: "Generate From Class Syllabus", body: "Select class, subject, chapter, and difficulty.", icon: BookOpen },
@@ -32,7 +33,7 @@ export function GenerateHub({
         <p className="mt-8 text-sm text-slate-400">Create a class first.</p>
       ) : (
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {METHODS.map((item) => (
+          {METHODS.map((item, index) => (
             <Link
               key={item.href}
               href={
@@ -41,11 +42,18 @@ export function GenerateHub({
                   : `${basePath}/exams/new?classId=${classId}&source=${item.href}`
               }
             >
-              <Card className="h-full">
-                <item.icon className="h-5 w-5 text-violet-300" />
-                <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
-                <p className="mt-2 text-sm text-slate-400">{item.body}</p>
-              </Card>
+              <PremiumBeam active={index < 2} variant={index === 0 ? "ice" : index === 1 ? "ocean" : "colorful"}>
+                <Card className="h-full transition duration-300 hover:-translate-y-1 hover:bg-white/[0.07]">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="grid h-10 w-10 place-items-center rounded-2xl border border-violet-300/15 bg-violet-500/10 text-violet-200 shadow-[0_0_26px_rgba(124,58,237,0.16)]">
+                      <item.icon className="h-5 w-5" />
+                    </span>
+                    {index < 2 ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-violet-100">AI flow</span> : null}
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold text-white">{item.title}</h3>
+                  <p className="mt-2 text-sm text-slate-400">{item.body}</p>
+                </Card>
+              </PremiumBeam>
             </Link>
           ))}
         </div>

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
+import { AiThinkingOrb, PremiumAction, PremiumBeam } from "@/components/effects/library-effects";
 
 const STEPS = ["Select Content", "Configure Questions", "Paper Variations", "Review & Schedule"];
 const AI_STAGES = [
@@ -258,7 +259,7 @@ export function ExamWizard({
                   />
                   {uploading ? (
                     <div className="overflow-hidden rounded-xl border border-violet-400/20 bg-violet-500/10 p-3 text-sm text-violet-100">
-                      Extracting text from your file…
+                      <AiThinkingOrb className="font-medium" label="Extracting text from your file…" size={20} state="searching" />
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
                         <motion.div
                           className="h-full bg-gradient-to-r from-[#7C3AED] to-[#4F6BFF]"
@@ -276,9 +277,11 @@ export function ExamWizard({
                     placeholder="Extracted text appears here. You can edit it before analysis."
                   />
                   <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} /> I reviewed the extracted text for accuracy</label>
-                  <Button variant="secondary" onClick={() => void analyze()} disabled={analyzing || content.length < 8}>
-                    {analyzing ? "Analyzing…" : "Analyze with AI"}
-                  </Button>
+                  <PremiumAction active={analyzing}>
+                    <Button variant="secondary" onClick={() => void analyze()} disabled={analyzing || content.length < 8}>
+                      {analyzing ? <AiThinkingOrb label="Analyzing…" size={20} state="solving" /> : "Analyze with AI"}
+                    </Button>
+                  </PremiumAction>
                   {topics.length ? (
                     <div className="flex flex-wrap gap-2">
                       {topics.map((topic) => (
@@ -360,7 +363,10 @@ export function ExamWizard({
               <Input type="number" min={5} value={duration} onChange={(e) => setDuration(Number(e.target.value))} />
               {error ? <p className="text-sm text-red-400">{error}</p> : null}
               {pending ? (
-                <ol className="space-y-2">
+                <PremiumBeam variant="ocean">
+                <div className="rounded-2xl bg-violet-500/[0.07] p-4">
+                  <AiThinkingOrb className="mb-4 text-sm font-semibold text-violet-100" label="AI is building your question papers" size={32} state="composing" />
+                  <ol className="space-y-2">
                   {AI_STAGES.map((label, i) => (
                     <li key={label} className="flex items-center gap-2 text-sm text-slate-300">
                       <span
@@ -376,7 +382,9 @@ export function ExamWizard({
                       {label}
                     </li>
                   ))}
-                </ol>
+                  </ol>
+                </div>
+                </PremiumBeam>
               ) : null}
             </Card>
           ) : null}
@@ -391,9 +399,11 @@ export function ExamWizard({
         {step < 3 ? (
           <Button onClick={() => setStep(step + 1)}>Continue</Button>
         ) : (
-          <Button onClick={() => void submit()} disabled={pending || !startAt || !endAt}>
-            {pending ? "Generating…" : "Generate Question Papers"}
-          </Button>
+          <PremiumAction active={!pending}>
+            <Button onClick={() => void submit()} disabled={pending || !startAt || !endAt}>
+              {pending ? <AiThinkingOrb label="Generating…" size={20} state="composing" /> : "Generate Question Papers"}
+            </Button>
+          </PremiumAction>
         )}
       </div>
     </div>
