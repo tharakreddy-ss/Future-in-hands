@@ -1,16 +1,14 @@
 import { randomUUID } from "crypto";
-import { mkdir, unlink, writeFile } from "fs/promises";
-import path from "path";
 import { extractText } from "unpdf";
 import { z } from "zod";
 import { withAuth } from "@/lib/with-auth";
 import { requireTenant } from "@/lib/tenant";
 import { errorJson, json } from "@/lib/utils";
 import { subjectService, type SubjectPage } from "@/services/subject.service";
+import { removePrivateObject, savePrivateObject } from "@/lib/private-storage";
 
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_EXTRACTED_CHARS = 4_000_000;
-const privateDir = () => process.env.FUTURE_HANDS_PRIVATE_UPLOAD_DIR ?? path.join(process.cwd(), ".data", "subject-library");
 
 async function readPdf(form: FormData, field: string) {
   const file = form.get(field);
@@ -54,26 +52,25 @@ export async function POST(request: Request) {
       description: form.get("description") || undefined,
     });
     const [syllabus, material] = await Promise.all([readPdf(form, "syllabus"), readPdf(form, "material")]);
-    const directory = privateDir();
-    await mkdir(directory, { recursive: true });
-    const syllabusPath = path.join(directory, syllabus.key);
-    const materialPath = path.join(directory, material.key);
-    await Promise.all([writeFile(syllabusPath, syllabus.bytes, { flag: "wx" }), writeFile(materialPath, material.bytes, { flag: "wx" })]);
+    const [syllabusFileKey, materialFileKey] = await Promise.all([
+      savePrivateObject("subject-library", syllabus.key, syllabus.bytes, "application/pdf"),
+      savePrivateObject("subject-library", material.key, material.bytes, "application/pdf"),
+    ]);
     try {
       const subject = await subjectService.create({
         ...metadata,
         institutionId: requireTenant(user)!,
         createdById: user.id,
-        syllabusFileKey: syllabus.key,
+        syllabusFileKey,
         syllabusFileName: syllabus.file.name,
         syllabusPages: syllabus.pages,
-        materialFileKey: material.key,
+        materialFileKey,
         materialFileName: material.file.name,
         materialPages: material.pages,
       });
       return json({ id: subject.id }, 201);
     } catch (error) {
-      await Promise.allSettled([unlink(syllabusPath), unlink(materialPath)]);
+      await Promise.allSettled([removePrivateObject("subject-library", syllabusFileKey), removePrivateObject("subject-library", materialFileKey)]);
       if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
         return errorJson("A subject with this name already exists in your institute.", 409);
       }

@@ -4,8 +4,7 @@ import { requireTenant } from "@/lib/tenant";
 import { studentSchema } from "@/lib/validators";
 import { json } from "@/lib/utils";
 import { randomUUID } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
+import { savePrivateObject } from "@/lib/private-storage";
 
 const PHOTO_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const PHOTO_LIMIT = 5 * 1024 * 1024;
@@ -46,10 +45,7 @@ export async function POST(request: Request) {
       const extension = PHOTO_TYPES[photo.type];
       if (!extension) throw Object.assign(new Error("Student photo must be a JPG, PNG or WebP image."), { status: 400 });
       if (photo.size > PHOTO_LIMIT) throw Object.assign(new Error("Student photo must be 5 MB or smaller."), { status: 413 });
-      photoKey = `${randomUUID()}.${extension}`;
-      const directory = path.join(process.cwd(), ".data", "student-photos");
-      await mkdir(directory, { recursive: true });
-      await writeFile(path.join(directory, photoKey), Buffer.from(await photo.arrayBuffer()), { flag: "wx" });
+      photoKey = await savePrivateObject("student-photos", `${randomUUID()}.${extension}`, photo, photo.type);
     }
     const body = studentSchema.parse({
       firstName: form.get("firstName") || undefined, lastName: form.get("lastName") || undefined, name: form.get("name") || undefined,

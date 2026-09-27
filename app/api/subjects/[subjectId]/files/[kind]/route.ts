@@ -1,9 +1,8 @@
-import { readFile } from "fs/promises";
-import path from "path";
 import { withAuth } from "@/lib/with-auth";
 import { requireTenant } from "@/lib/tenant";
 import { errorJson } from "@/lib/utils";
 import { subjectService } from "@/services/subject.service";
+import { readPrivateObject } from "@/lib/private-storage";
 
 export async function GET(_: Request, context: { params: Promise<{ subjectId: string; kind: string }> }) {
   const { subjectId, kind } = await context.params;
@@ -17,13 +16,13 @@ export async function GET(_: Request, context: { params: Promise<{ subjectId: st
         ? { key: subject.materialFileKey, name: subject.materialFileName }
         : null;
     if (!file?.key || !file.name) return errorJson("File not found", 404);
-    const directory = process.env.FUTURE_HANDS_PRIVATE_UPLOAD_DIR ?? path.join(process.cwd(), ".data", "subject-library");
-    const bytes = await readFile(path.join(directory, path.basename(file.key)));
-    return new Response(new Uint8Array(bytes), {
+    const object = await readPrivateObject("subject-library", file.key);
+    if (!object) return errorJson("File not found", 404);
+    return new Response(object.body, {
       headers: {
-        "Content-Type": "application/pdf",
+        "Content-Type": object.contentType === "application/octet-stream" ? "application/pdf" : object.contentType,
         "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-        "Cache-Control": "private, no-store",
+        "Cache-Control": "private, no-cache",
         "X-Content-Type-Options": "nosniff",
       },
     });
