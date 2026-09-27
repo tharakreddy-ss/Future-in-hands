@@ -33,8 +33,9 @@ body {
   isolation: isolate;
   min-height: 100%;
   background:
-    radial-gradient(900px 420px at 90% -10%, rgba(124, 58, 237, 0.16), transparent 55%),
-    radial-gradient(700px 380px at 0% 100%, rgba(79, 107, 255, 0.12), transparent 50%),
+    radial-gradient(900px 420px at 90% -10%, rgba(124, 58, 237, 0.22), transparent 55%),
+    radial-gradient(700px 380px at 0% 100%, rgba(29, 148, 255, 0.13), transparent 50%),
+    radial-gradient(600px 300px at 48% 28%, rgba(99, 72, 255, 0.06), transparent 58%),
     #080d1c;
 }
 
@@ -46,8 +47,8 @@ body {
   background-image:
     linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
-  background-size: 44px 44px;
-  mask-image: radial-gradient(ellipse at top, black 20%, transparent 75%);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse at top, black 15%, transparent 78%);
   pointer-events: none;
 }
 
@@ -116,6 +117,12 @@ body {
 .input-select:focus {
   border-color: rgba(167, 139, 250, 0.65);
   box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.15);
+}
+
+::selection { background: rgba(139, 92, 246, 0.42); color: white; }
+
+@media (max-width: 639px) {
+  .page-canvas { background-size: 32px 32px; }
 }
 
 
