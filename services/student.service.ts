@@ -34,6 +34,9 @@ export const studentService = {
   list(institutionId: string) {
     return studentRepository.list(institutionId);
   },
+  directory(institutionId: string) {
+    return studentRepository.directory(institutionId);
+  },
   search(institutionId: string, q: string) {
     return studentRepository.search(institutionId, q);
   },
@@ -336,7 +339,15 @@ export const studentService = {
       joinDate: student.createdAt.toISOString(),
       institution: student.institution.name,
       className: enrollment?.class.name ?? "Unassigned",
-      section: enrollment?.class.subject ?? "—",
+      section: enrollment?.class.section || "—",
+      academicYear: enrollment?.class.academicYear ?? student.academicYear,
+      rollNumber: student.rollNumber,
+      dateOfBirth: student.dateOfBirth?.toISOString() ?? null,
+      gender: student.gender,
+      guardianName: student.guardianName,
+      guardianPhone: student.guardianPhone,
+      address: student.address,
+      classSubjects: enrollment?.class.subjects.map((item) => item.subject.name) ?? [],
       classId: classId ?? null,
       metrics: {
         attempted: attempts.length,

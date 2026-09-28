@@ -3,8 +3,6 @@ import { requireTenant } from "@/lib/tenant";
 import { examService } from "@/services/exam.service";
 import { ExamList } from "@/components/exams/exam-list";
 import { PageHeader } from "@/components/layout/skeleton";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
 
 export default async function TeacherExamsPage({
   searchParams,
@@ -18,11 +16,7 @@ export default async function TeacherExamsPage({
     <div>
       <PageHeader
         title="Exams"
-        actions={
-          <Link href="/teacher/generate">
-            <Button>+ Create Exam</Button>
-          </Link>
-        }
+        subtitle="Scheduled classroom and individual exams."
       />
       <ExamList exams={exams} tab={tab} basePath="/teacher" />
     </div>

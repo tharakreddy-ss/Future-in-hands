@@ -3,13 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Pencil, Sparkles } from "lucide-react";
+import { ArrowLeft, Download, Pencil } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { StudentAvatar } from "@/components/students/student-avatar";
+import { StudentImageReveal } from "@/components/students/student-image-reveal";
 import { PerformanceChart } from "@/components/students/performance-chart";
 import type { StudentProfile } from "@/components/students/types";
 import { formatDate, formatPercent } from "@/lib/utils";
@@ -48,9 +49,7 @@ export function StudentProfileView({
   });
   const [saving, setSaving] = useState(false);
 
-  const practiceHref = profile.classId
-    ? `${basePath}/exams/new?classId=${profile.classId}&source=topic&topic=${encodeURIComponent(profile.insights.weak.join(", ") || profile.className)}`
-    : `${basePath}/generate`;
+  const examHref = profile.classId ? `${basePath}/exams/new?classId=${profile.classId}&studentId=${profile.id}` : null;
 
   async function save() {
     setSaving(true);
@@ -73,13 +72,22 @@ export function StudentProfileView({
             Back to Students
           </Link>
           <div className="mt-4 flex items-center gap-4">
-            <StudentAvatar name={profile.name} photoUrl={profile.photoUrl} size="lg" />
+            <div className="overflow-hidden rounded-2xl border border-white/10">
+              {profile.photoUrl ? (
+                <StudentImageReveal src={profile.photoUrl} alt={profile.name} variant="profile" />
+              ) : (
+                <div className="grid h-48 w-36 place-items-center bg-[#151D31]">
+                  <StudentAvatar name={profile.name} size="lg" />
+                </div>
+              )}
+            </div>
             <div>
               <h1 className="text-3xl font-semibold tracking-tight text-white">{profile.name}</h1>
-              <p className="mt-1 text-sm text-slate-400">{profile.studentIdentifier}</p>
+              <p className="mt-1 text-sm text-slate-400">ID: {profile.studentIdentifier}</p>
               <p className="mt-1 text-sm text-slate-500">
-                {profile.className} • {profile.section}
+                Class: {profile.className}{profile.section && profile.section !== "—" ? ` · Section ${profile.section}` : ""}
               </p>
+              <p className="mt-1 text-sm text-slate-500">Roll No: {profile.rollNumber || "—"}</p>
               <div className="mt-2">
                 <Badge tone={profile.status === "ACTIVE" ? "green" : "amber"}>
                   {profile.status === "ACTIVE" ? "Active" : "Inactive"}
@@ -89,6 +97,16 @@ export function StudentProfileView({
           </div>
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
+          {examHref ? (
+            <Link
+              href={examHref}
+              className="inline-flex items-center rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#4F6BFF] px-4 py-2.5 text-sm font-semibold text-white"
+            >
+              Create Exam
+            </Link>
+          ) : (
+            <p className="text-sm text-slate-400">Enroll this student in a classroom before creating an exam.</p>
+          )}
           <Button variant="secondary" onClick={() => { setTab("Personal Information"); setEditing(true); }}>
             <Pencil className="h-4 w-4" />
             Edit Student
@@ -138,7 +156,7 @@ export function StudentProfileView({
                 <PerformanceChart series={profile.series} />
               </div>
             </Card>
-            <InsightsCard profile={profile} practiceHref={practiceHref} />
+            <InsightsCard profile={profile} />
           </div>
           <SubjectBars subjects={profile.subjects} />
           <HistoryTable history={profile.history} basePath={basePath} studentId={profile.id} />
@@ -151,7 +169,7 @@ export function StudentProfileView({
 
       {tab === "Subject Performance" ? <SubjectBars subjects={profile.subjects} /> : null}
 
-      {tab === "AI Insights" ? <InsightsCard profile={profile} practiceHref={practiceHref} /> : null}
+      {tab === "AI Insights" ? <InsightsCard profile={profile} /> : null}
 
       {tab === "Personal Information" ? (
         <Card className="max-w-2xl space-y-4">
@@ -191,7 +209,15 @@ export function StudentProfileView({
               <Info label="Email" value={profile.email} />
               <Info label="Phone Number" value={profile.phone || "—"} />
               <Info label="Class" value={profile.className} />
-              <Info label="Section" value={profile.section} />
+              <Info label="Section" value={profile.section || "—"} />
+              <Info label="Roll number" value={profile.rollNumber || "—"} />
+              <Info label="Academic year" value={profile.academicYear || "—"} />
+              {profile.classSubjects.length ? <Info label="Subjects" value={profile.classSubjects.join(", ")} /> : null}
+              {profile.dateOfBirth ? <Info label="Date of birth" value={formatDate(profile.dateOfBirth)} /> : null}
+              {profile.gender ? <Info label="Gender" value={profile.gender} /> : null}
+              {profile.guardianName ? <Info label="Parent / guardian" value={profile.guardianName} /> : null}
+              {profile.guardianPhone ? <Info label="Guardian phone" value={profile.guardianPhone} /> : null}
+              {profile.address ? <Info label="Address" value={profile.address} /> : null}
               <Info label="Institution" value={profile.institution} />
               <Info label="Join Date" value={formatDate(profile.joinDate)} />
               <Info label="Status" value={profile.status === "ACTIVE" ? "Active" : "Inactive"} />
@@ -212,39 +238,42 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-function InsightsCard({ profile, practiceHref }: { profile: StudentProfile; practiceHref: string }) {
+function InsightsCard({ profile }: { profile: StudentProfile }) {
   return (
     <Card>
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-300">AI</p>
       <h2 className="mt-1 text-lg font-semibold text-white">AI Performance Insights</h2>
       <p className="mt-3 text-sm leading-relaxed text-slate-300">{profile.insights.summary}</p>
-      <div className="mt-4">
-        <p className="text-xs uppercase tracking-wide text-slate-500">Strengths</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {(profile.insights.strengths.length ? profile.insights.strengths : ["Consistent attempt rate"]).map((item) => (
-            <Badge key={item} tone="green">
-              {item}
-            </Badge>
-          ))}
-        </div>
-      </div>
-      <div className="mt-4">
-        <p className="text-xs uppercase tracking-wide text-slate-500">Areas Needing Improvement</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {(profile.insights.weak.length ? profile.insights.weak : ["Keep practising mixed difficulty papers"]).map((item) => (
-            <Badge key={item} tone="amber">
-              {item}
-            </Badge>
-          ))}
-        </div>
-      </div>
-      <Link
-        href={practiceHref}
-        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#4F6BFF] px-4 py-2.5 text-sm font-semibold text-white"
-      >
-        <Sparkles className="h-4 w-4" />
-        Generate Practice Test
-      </Link>
+      {profile.insights.strengths.length === 0 && profile.insights.weak.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-400">No assessment results available yet.</p>
+      ) : (
+        <>
+          {profile.insights.strengths.length > 0 ? (
+            <div className="mt-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Strengths</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {profile.insights.strengths.map((item) => (
+                  <Badge key={item} tone="green">
+                    {item}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {profile.insights.weak.length > 0 ? (
+            <div className="mt-4">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Areas Needing Improvement</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {profile.insights.weak.map((item) => (
+                  <Badge key={item} tone="amber">
+                    {item}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </>
+      )}
     </Card>
   );
 }

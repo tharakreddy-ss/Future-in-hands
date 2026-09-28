@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DemoCredentials } from "@/components/auth/demo-credentials";
 import { cn } from "@/lib/utils";
+import { PremiumAction } from "@/components/effects/library-effects";
 
 export function LoginPortal({ defaultTab = "staff" }: { defaultTab?: "staff" | "student" }) {
   const router = useRouter();
@@ -90,24 +91,26 @@ export function LoginPortal({ defaultTab = "staff" }: { defaultTab?: "staff" | "
           Remember Me
         </label>
         {error ? <p className="text-sm text-red-400">{error}</p> : null}
-        <Button type="submit" className="w-full" disabled={pending}>
-          {pending ? "Signing in…" : "Sign In"}
-        </Button>
+        <PremiumAction active={!pending} strength={0.78}>
+          <Button type="submit" className="w-full" disabled={pending}>
+            {pending ? "Signing in…" : "Sign In"}
+          </Button>
+        </PremiumAction>
       </form>
       <p className="mt-4 text-center text-xs text-slate-500">OR</p>
       <Button variant="outline" type="button" className="mt-3 w-full" disabled>
         Continue with Google
       </Button>
       <DemoCredentials
-        onStaff={(e, p) => {
+        onStaff={(emailValue, passwordValue) => {
           setTab("staff");
-          setEmail(e);
-          setPassword(p);
+          setEmail(emailValue);
+          setPassword(passwordValue);
         }}
-        onStudent={(id, p) => {
+        onStudent={(id, passwordValue) => {
           setTab("student");
           setStudentId(id);
-          setPassword(p);
+          setPassword(passwordValue);
         }}
       />
       <p className="mt-6 text-center text-sm text-slate-500">

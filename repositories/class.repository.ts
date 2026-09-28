@@ -5,6 +5,7 @@ export const classRepository = {
     return db.class.findMany({
       where: { institutionId },
       include: {
+        subjects: { include: { subject: { select: { id: true, name: true } } } },
         _count: { select: { enrollments: true, tests: true, questions: true } },
       },
       orderBy: [{ academicYear: "asc" }, { groupName: "asc" }, { name: "asc" }],
@@ -16,6 +17,7 @@ export const classRepository = {
       include: {
         enrollments: { include: { student: true } },
         syllabuses: { include: { topics: true } },
+        subjects: { include: { subject: { select: { id: true, name: true } } } },
         _count: { select: { questions: true, tests: true, enrollments: true } },
       },
     });

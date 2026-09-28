@@ -39,14 +39,15 @@ export const subjectService = {
     curriculum?: string;
     academicYear?: string;
     description?: string;
-    syllabusFileKey: string;
-    syllabusFileName: string;
-    syllabusPages: SubjectPage[];
-    materialFileKey: string;
-    materialFileName: string;
-    materialPages: SubjectPage[];
+    syllabusFileKey?: string;
+    syllabusFileName?: string;
+    syllabusPages?: SubjectPage[];
+    materialFileKey?: string;
+    materialFileName?: string;
+    materialPages?: SubjectPage[];
   }) {
-    const units = detectUnits(input.syllabusPages);
+    const syllabusPages = input.syllabusPages ?? [];
+    const units = syllabusPages.length ? detectUnits(syllabusPages) : [];
     return db.subject.create({
       data: {
         institutionId: input.institutionId,
@@ -59,19 +60,23 @@ export const subjectService = {
         description: input.description,
         syllabusFileKey: input.syllabusFileKey,
         syllabusFileName: input.syllabusFileName,
-        syllabusPagesJson: input.syllabusPages,
+        syllabusPagesJson: syllabusPages,
         materialFileKey: input.materialFileKey,
         materialFileName: input.materialFileName,
-        materialPagesJson: input.materialPages,
-        units: {
-          create: units.map((unit, order) => ({
-            name: unit.name,
-            order,
-            pageStart: unit.pageStart,
-            pageEnd: unit.pageEnd,
-            topics: { create: unit.topics.map((topic, topicOrder) => ({ ...topic, order: topicOrder })) },
-          })),
-        },
+        materialPagesJson: input.materialPages ?? [],
+        ...(units.length
+          ? {
+              units: {
+                create: units.map((unit, order) => ({
+                  name: unit.name,
+                  order,
+                  pageStart: unit.pageStart,
+                  pageEnd: unit.pageEnd,
+                  topics: { create: unit.topics.map((topic, topicOrder) => ({ ...topic, order: topicOrder })) },
+                })),
+              },
+            }
+          : {}),
       },
       include: { units: { include: { topics: true } } },
     });

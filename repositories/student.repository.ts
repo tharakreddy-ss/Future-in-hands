@@ -8,11 +8,26 @@ export const studentRepository = {
       orderBy: { createdAt: "desc" },
     });
   },
+  directory(institutionId: string) {
+    return db.student.findMany({
+      where: { institutionId },
+      include: {
+        enrollments: {
+          include: { class: { select: { id: true, name: true, section: true, academicYear: true } } },
+        },
+      },
+      orderBy: [{ firstName: "asc" }, { lastName: "asc" }],
+    });
+  },
   get(id: string) {
     return db.student.findUnique({
       where: { id },
       include: {
-        enrollments: { include: { class: true } },
+        enrollments: {
+          include: {
+            class: { include: { subjects: { include: { subject: { select: { id: true, name: true } } } } } },
+          },
+        },
         attempts: { include: { test: true }, orderBy: { startedAt: "desc" } },
         user: { select: { id: true, name: true, email: true, isActive: true } },
         institution: true,

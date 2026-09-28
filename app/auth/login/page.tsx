@@ -1,5 +1,6 @@
 import { LoginPortal } from "@/components/auth/login-form";
 import { BrandLockup } from "@/components/shell/app-shell";
+import { PremiumBeam } from "@/components/effects/library-effects";
 
 export default function StaffLoginPage() {
   return (
@@ -23,17 +24,18 @@ export default function StaffLoginPage() {
           </ul>
         </div>
         <div className="pointer-events-none absolute -right-10 bottom-10 h-64 w-64 rounded-full bg-violet-600/20 blur-3xl" />
-        <p className="relative z-10 mt-auto text-sm text-slate-500">Trusted by 500+ Schools & Institutions ★★★★★</p>
       </div>
       <div className="grid place-items-center bg-[#080D1C] p-6">
-        <div className="w-full max-w-md rounded-3xl border border-white/8 bg-[#11182A] p-8">
-          <h1 className="text-2xl font-semibold text-white">Welcome back 👋</h1>
-          <p className="mt-1 text-sm text-slate-400">Sign in to MockTest AI</p>
-          <p className="mt-2 mb-6 text-sm text-slate-500">
-            Super admins and institution admins use email. Students use Student ID.
-          </p>
-          <LoginPortal defaultTab="staff" />
-        </div>
+        <PremiumBeam borderRadius={24} className="w-full max-w-md" size="md" strength={0.7} variant="colorful">
+          <div className="w-full rounded-3xl border border-white/8 bg-[#11182A] p-8 shadow-[0_28px_80px_-42px_rgba(0,0,0,0.85)]">
+            <h1 className="text-2xl font-semibold text-white">Welcome back 👋</h1>
+            <p className="mt-1 text-sm text-slate-400">Sign in to MockTest AI</p>
+            <p className="mt-2 mb-6 text-sm text-slate-500">
+              Super admins and institution admins use email. Students use Student ID.
+            </p>
+            <LoginPortal defaultTab="staff" />
+          </div>
+        </PremiumBeam>
       </div>
     </div>
   );
