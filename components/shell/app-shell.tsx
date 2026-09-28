@@ -20,6 +20,7 @@ import {
   Layers,
   Library,
   UserRound,
+  Target,
   LogOut,
   Menu,
   X,
@@ -49,6 +50,7 @@ const ICONS: Record<NavKey, typeof LayoutDashboard> = {
   profile: BookOpen,
   notifications: Bell,
   help: HelpCircle,
+  practice: Target,
 };
 
 export function BrandLockup({ compact = false }: { compact?: boolean }) {

@@ -77,6 +77,14 @@ export const notificationService = {
   unreadCount(studentId: string) {
     return db.notification.count({ where: { studentId, readAt: null } });
   },
+  recentUnread(studentId: string, take = 3) {
+    return db.notification.findMany({
+      where: { studentId, readAt: null },
+      orderBy: { createdAt: "desc" },
+      take,
+      select: { id: true, title: true, body: true, type: true, createdAt: true },
+    });
+  },
 
   async markRead(id: string, studentId: string) {
     return db.notification.updateMany({

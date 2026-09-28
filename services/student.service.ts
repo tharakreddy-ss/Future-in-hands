@@ -108,6 +108,29 @@ export const studentService = {
   enroll(classId: string, studentId: string) {
     return studentRepository.enroll(classId, studentId);
   },
+  enrollmentCount(studentId: string) {
+    return db.classStudent.count({ where: { studentId } });
+  },
+  classSummariesForStudent(studentId: string, take = 4) {
+    return db.classStudent.findMany({
+      where: { studentId },
+      orderBy: { joinedAt: "desc" },
+      take,
+      select: {
+        id: true,
+        class: {
+          select: {
+            id: true,
+            name: true,
+            subject: true,
+            academicYear: true,
+            section: true,
+            groupName: true,
+          },
+        },
+      },
+    });
+  },
   async classesForStudent(studentId: string) {
     return db.classStudent.findMany({
       where: { studentId },
