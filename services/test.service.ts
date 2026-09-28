@@ -1,6 +1,16 @@
 import { testRepository } from "@/repositories/test.repository";
 import { db } from "@/lib/db";
 
+const studentAssignmentInclude = {
+  test: {
+    include: {
+      class: true,
+      subject: true,
+      _count: { select: { questions: true } },
+    },
+  },
+} as const;
+
 export const testService = {
   list(classId: string) {
     return testRepository.list(classId);
@@ -41,14 +51,14 @@ export const testService = {
   async forStudent(studentId: string) {
     return db.testAssignment.findMany({
       where: { studentId },
-      include: {
-        test: {
-          include: {
-            class: true,
-            _count: { select: { questions: true } },
-          },
-        },
-      },
+      include: studentAssignmentInclude,
+      orderBy: { assignedAt: "desc" },
+    });
+  },
+  forStudentInClass(studentId: string, classId: string) {
+    return db.testAssignment.findMany({
+      where: { studentId, test: { classId } },
+      include: studentAssignmentInclude,
       orderBy: { assignedAt: "desc" },
     });
   },

@@ -2,6 +2,7 @@ import { studentRepository } from "@/repositories/student.repository";
 import { hashPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { fullName, splitName } from "@/lib/utils";
+import { testService } from "@/services/test.service";
 
 async function nextStudentIdentifier(institutionId: string, prefix: string) {
   const last = await db.student.findFirst({
@@ -109,7 +110,22 @@ export const studentService = {
   async classesForStudent(studentId: string) {
     return db.classStudent.findMany({
       where: { studentId },
-      include: { class: { include: { tests: true } } },
+      include: {
+        class: {
+          select: {
+            id: true,
+            name: true,
+            subject: true,
+            description: true,
+            academicYear: true,
+            section: true,
+            groupName: true,
+            program: true,
+            createdBy: { select: { name: true } },
+            _count: { select: { syllabuses: true, subjects: true } },
+          },
+        },
+      },
     });
   },
   /** Returns the enrollment only when this student is in the class; otherwise null. */
@@ -124,6 +140,61 @@ export const studentService = {
         },
       },
     });
+  },
+  /** Enrolled classroom only: class metadata, syllabus/topics, linked subjects, and this student's assignments. */
+  async classroomForStudent(studentId: string, classId: string) {
+    const enrollment = await db.classStudent.findUnique({
+      where: { classId_studentId: { classId, studentId } },
+      include: {
+        class: {
+          include: {
+            createdBy: { select: { id: true, name: true } },
+            syllabuses: {
+              select: {
+                id: true,
+                title: true,
+                inputType: true,
+                createdAt: true,
+                topics: { select: { id: true, name: true, parentTopicId: true, weightage: true } },
+              },
+              orderBy: { createdAt: "desc" },
+            },
+            subjects: {
+              include: {
+                subject: {
+                  select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    syllabusFileName: true,
+                    materialFileName: true,
+                    createdAt: true,
+                    units: {
+                      orderBy: { order: "asc" },
+                      select: {
+                        id: true,
+                        name: true,
+                        topics: { orderBy: { order: "asc" }, select: { name: true } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!enrollment) return null;
+    const assignments = await testService.forStudentInClass(studentId, classId);
+    const testIds = assignments.map((row) => row.testId);
+    const attempts = testIds.length
+      ? await db.studentTestAttempt.findMany({
+          where: { studentId, testId: { in: testIds } },
+          select: { id: true, testId: true, status: true },
+        })
+      : [];
+    return { class: enrollment.class, assignments, attempts };
   },
   async stats(studentId: string) {
     const submitted = await db.studentTestAttempt.findMany({
