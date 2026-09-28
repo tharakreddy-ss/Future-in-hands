@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { BorderBeam } from "border-beam";
+import { BorderBeam, type BorderBeamColorVariant, type BorderBeamSize } from "border-beam";
 import { ThinkingOrb, type OrbState } from "thinking-orbs";
 import { MetalFx } from "metal-fx";
 import { cn } from "@/lib/utils";
@@ -11,20 +11,26 @@ export function PremiumBeam({
   className,
   active = true,
   variant = "ocean",
+  size = "pulse-inner",
+  strength = 0.42,
+  borderRadius = 20,
 }: {
   children: ReactNode;
   className?: string;
   active?: boolean;
-  variant?: "ocean" | "sunset" | "ice" | "gold" | "colorful";
+  variant?: BorderBeamColorVariant;
+  size?: BorderBeamSize;
+  strength?: number;
+  borderRadius?: number;
 }) {
   return (
     <BorderBeam
       active={active}
-      borderRadius={20}
+      borderRadius={borderRadius}
       className={cn("block h-full", className)}
       colorVariant={variant}
-      size="pulse-inner"
-      strength={0.42}
+      size={size}
+      strength={strength}
       theme="dark"
     >
       {children}
@@ -51,9 +57,17 @@ export function AiThinkingOrb({
   );
 }
 
-export function PremiumAction({ children, active = true }: { children: ReactNode; active?: boolean }) {
+export function PremiumAction({
+  children,
+  active = true,
+  strength = 0.42,
+}: {
+  children: ReactNode;
+  active?: boolean;
+  strength?: number;
+}) {
   return (
-    <MetalFx disableGlow={!active} innerShadow paused={!active} preset="chromatic" strength={0.42} theme="dark">
+    <MetalFx disableGlow={!active} innerShadow paused={!active} preset="chromatic" strength={strength} theme="dark">
       {children}
     </MetalFx>
   );

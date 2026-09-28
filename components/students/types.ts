@@ -1,3 +1,10 @@
+export type StudentClassRef = {
+  id: string;
+  name: string;
+  section: string;
+  academicYear: string;
+};
+
 export type StudentHit = {
   id: string;
   name: string;
@@ -7,6 +14,11 @@ export type StudentHit = {
   status: "ACTIVE" | "INACTIVE";
   className: string;
   section: string;
+  classId: string | null;
+  rollNumber: string | null;
+  photoUrl: string | null;
+  academicYear: string | null;
+  classes: StudentClassRef[];
 };
 
 export type StudentProfile = {
@@ -23,6 +35,14 @@ export type StudentProfile = {
   institution: string;
   className: string;
   section: string;
+  academicYear: string | null;
+  rollNumber: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  guardianName: string | null;
+  guardianPhone: string | null;
+  address: string | null;
+  classSubjects: string[];
   classId: string | null;
   metrics: {
     attempted: number;

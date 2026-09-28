@@ -4,8 +4,6 @@ import { analyticsService } from "@/services/analytics.service";
 import { PageHeader } from "@/components/layout/skeleton";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import Link from "next/link";
 
 export default async function AdminAnalyticsPage() {
   const user = await requireSession(["INSTITUTION_ADMIN"]);
@@ -22,13 +20,7 @@ export default async function AdminAnalyticsPage() {
       </div>
       <Card className="mt-6">
         <h2 className="font-semibold">AI Learning Insights</h2>
-        <ul className="mt-3 space-y-2 text-sm text-slate-400">
-          <li>Class performance is tracking at {Math.round(stats.averageScore)}% average.</li>
-          <li>Recommended action: run a revision test on weaker topics from the last paper.</li>
-        </ul>
-        <Link href="/admin/generate" className="mt-4 inline-block">
-          <Button>Generate Practice Test</Button>
-        </Link>
+        <p className="mt-3 text-sm text-slate-400">Class performance is tracking at {Math.round(stats.averageScore)}% average.</p>
       </Card>
     </div>
   );

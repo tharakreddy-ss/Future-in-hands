@@ -1,13 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Check } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 import { AiThinkingOrb, PremiumAction, PremiumBeam } from "@/components/effects/library-effects";
 
 const STEPS = ["Select Content", "Configure Questions", "Paper Variations", "Review & Schedule"];
@@ -50,6 +50,9 @@ export function ExamWizard({
   className,
   strength,
   syllabuses,
+  subjects,
+  studentId,
+  studentName,
   portal = "/admin",
   initialSource = "syllabus",
   initialTopic = "",
@@ -58,6 +61,9 @@ export function ExamWizard({
   className: string;
   strength: number;
   syllabuses: Array<{ id: string; title: string }>;
+  subjects: Array<{ id: string; name: string }>;
+  studentId?: string;
+  studentName?: string;
   portal?: "/admin" | "/teacher";
   initialSource?: Source;
   initialTopic?: string;
@@ -66,10 +72,11 @@ export function ExamWizard({
   const [step, setStep] = useState(0);
   const [source, setSource] = useState<Source>(initialSource);
   const [syllabusId, setSyllabusId] = useState(syllabuses[0]?.id ?? "");
+  const [subjectId, setSubjectId] = useState(studentId ? "" : subjects[0]?.id ?? "");
   const [topicText, setTopicText] = useState(initialTopic);
   const [content, setContent] = useState("");
   const [topics, setTopics] = useState<string[]>([]);
-  const [title, setTitle] = useState(`${className} Mock Test`);
+  const [title, setTitle] = useState(studentName ? `${studentName} · ${className}` : `${className} Mock Test`);
   const [questionCount, setQuestionCount] = useState(20);
   const [customCount, setCustomCount] = useState(30);
   const [difficulty, setDifficulty] = useState<"EASY" | "MEDIUM" | "HARD" | "MIXED">("MIXED");
@@ -121,9 +128,16 @@ export function ExamWizard({
 
   async function submit() {
     setError("");
-    if (source === "syllabus" && !syllabusId) { setError("Select a syllabus or choose another source"); return; }
-    if (source === "topic" && topicText.trim().length < 8) { setError("Enter a topic or syllabus of at least 8 characters"); return; }
-    if ((source === "image" || source === "document") && (!reviewed || content.trim().length < 8)) { setError("Review the extracted content and confirm it before scheduling"); return; }
+    const topic = topicText.trim();
+    if (studentId) {
+      if (!subjectId && !topic) { setError("Select a subject or enter a topic to generate the test."); return; }
+    } else if (!subjectId) {
+      setError(subjects.length ? "Select a subject assigned to this classroom." : "Assign a subject to this classroom before creating an exam.");
+      return;
+    }
+    if (!studentId && source === "syllabus" && !syllabusId) { setError("Select a syllabus or choose another source"); return; }
+    if (!studentId && source === "topic" && topic.length < 8) { setError("Enter a topic or syllabus of at least 8 characters"); return; }
+    if (!studentId && (source === "image" || source === "document") && (!reviewed || content.trim().length < 8)) { setError("Review the extracted content and confirm it before scheduling"); return; }
     setPending(true);
     setStage(0);
     const timer = setInterval(() => setStage((s) => Math.min(s + 1, AI_STAGES.length - 1)), 700);
@@ -133,11 +147,16 @@ export function ExamWizard({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         classId,
+        subjectId: subjectId || undefined,
+        studentId,
         title,
-        syllabusId: source === "syllabus" ? syllabusId : undefined,
-        topicText: source === "topic" ? topicText : undefined,
-        content:
-          source === "image" || source === "document" || source === "topic" ? content || topicText : undefined,
+        syllabusId: !studentId && source === "syllabus" ? syllabusId : undefined,
+        topicText: studentId ? topic || undefined : source === "topic" ? topicText : undefined,
+        content: studentId
+          ? undefined
+          : source === "image" || source === "document" || source === "topic"
+            ? content || topicText
+            : undefined,
         questionCount: count,
         difficulty: difficulty === "MIXED" ? undefined : difficulty,
         mixed: difficulty === "MIXED",
@@ -200,6 +219,44 @@ export function ExamWizard({
           {step === 0 ? (
             <Card className="space-y-4">
               <h2 className="text-lg font-semibold text-white">Select content</h2>
+              <p className="text-sm text-slate-400">
+                Classroom: <span className="text-white">{className}</span>
+                {studentName ? <> · Assigned only to <span className="text-white">{studentName}</span></> : " · Assigned to every active student in this classroom"}
+              </p>
+              {studentId ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-slate-400">Select a class subject or enter a custom topic.</p>
+                  <div className="space-y-1.5 text-sm text-slate-300">
+                    <span className="block">Subject</span>
+                    {subjects.length === 0 ? (
+                      <p className="text-sm text-slate-400">No subjects are assigned to this classroom.</p>
+                    ) : (
+                      <SubjectMenu subjects={subjects} value={subjectId} onChange={setSubjectId} placeholder="Select subject" />
+                    )}
+                  </div>
+                  <p className="text-center text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">or</p>
+                  <label className="block space-y-1.5 text-sm text-slate-300">
+                    <span>Topic</span>
+                    <textarea
+                      className={fieldClass}
+                      value={topicText}
+                      onChange={(event) => setTopicText(event.target.value)}
+                      placeholder="Enter a topic"
+                    />
+                  </label>
+                </div>
+              ) : (
+              <div className="space-y-1.5 text-sm text-slate-300">
+                <span className="block">Subject <span className="text-rose-300">*</span></span>
+                {subjects.length === 0 ? (
+                  <p className="text-sm text-slate-400">No subjects available. Assign subjects to this classroom before creating an exam.</p>
+                ) : (
+                  <SubjectMenu subjects={subjects} value={subjectId} onChange={setSubjectId} placeholder="Select subject" />
+                )}
+              </div>
+              )}
+              {studentId ? null : (
+              <>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {(
                   [
@@ -298,6 +355,8 @@ export function ExamWizard({
                   Use saved class questions, prioritizing less-used items. If there are too few matching questions, an AI provider is required to fill the gap.
                 </p>
               ) : null}
+              </>
+              )}
             </Card>
           ) : null}
 
@@ -397,15 +456,90 @@ export function ExamWizard({
           Back
         </Button>
         {step < 3 ? (
-          <Button onClick={() => setStep(step + 1)}>Continue</Button>
+          <Button onClick={() => setStep(step + 1)} disabled={studentId ? !subjectId && !topicText.trim() : !subjectId}>Continue</Button>
         ) : (
           <PremiumAction active={!pending}>
-            <Button onClick={() => void submit()} disabled={pending || !startAt || !endAt}>
+            <Button onClick={() => void submit()} disabled={pending || !startAt || !endAt || (studentId ? !subjectId && !topicText.trim() : !subjectId)}>
               {pending ? <AiThinkingOrb label="Generating…" size={20} state="composing" /> : "Generate Question Papers"}
             </Button>
           </PremiumAction>
         )}
       </div>
+    </div>
+  );
+}
+
+function SubjectMenu({
+  subjects,
+  value,
+  onChange,
+  placeholder,
+}: {
+  subjects: Array<{ id: string; name: string }>;
+  value: string;
+  onChange: (id: string) => void;
+  placeholder: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
+  const current = subjects.find((subject) => subject.id === value);
+
+  useEffect(() => {
+    function onDoc(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  return (
+    <div ref={rootRef}>
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((currentOpen) => !currentOpen)}
+        className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-[#0B1020] px-3 py-2.5 text-left text-sm outline-none focus:border-violet-400/50"
+      >
+        <span className={current ? "text-white" : "text-slate-400"}>{current?.name ?? placeholder}</span>
+        <ChevronDown className="h-4 w-4 text-slate-500" />
+      </button>
+      {open ? (
+        <ul id={listId} role="listbox" className="mt-2 max-h-56 overflow-auto rounded-xl border border-white/10 bg-[#0B1020] p-1.5">
+          <li>
+            <button
+              type="button"
+              role="option"
+              aria-selected={!value}
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+              className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-slate-400 hover:bg-white/[0.06]"
+            >
+              {placeholder}
+            </button>
+          </li>
+          {subjects.map((subject) => (
+            <li key={subject.id}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={subject.id === value}
+                onClick={() => {
+                  onChange(subject.id);
+                  setOpen(false);
+                }}
+                className="w-full rounded-lg px-2.5 py-2 text-left text-sm text-white hover:bg-white/[0.06]"
+              >
+                {subject.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

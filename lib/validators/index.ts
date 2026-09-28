@@ -41,6 +41,18 @@ export const classSchema = z.object({
   program: z.string().max(100).optional(),
 });
 
+export const classCreateSchema = z.object({
+  name: z.string().min(2),
+  description: z.string().max(1000).optional(),
+  academicYear: z.enum(["1st Year", "2nd Year", "3rd Year", "4th Year"]),
+  groupName: z.string().trim().min(1).max(80),
+  section: z.string().trim().max(40).optional(),
+  subjectIds: z
+    .array(z.string().min(1))
+    .min(1, "Please select at least one subject.")
+    .transform((ids) => [...new Set(ids)]),
+});
+
 export const studentSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().optional(),
@@ -109,6 +121,8 @@ export const answerSchema = z.object({
 
 export const examSchema = z.object({
   classId: z.string().min(1),
+  subjectId: z.string().min(1).optional(),
+  studentId: z.string().min(1).optional(),
   title: z.string().min(2),
   syllabusId: z.string().optional(),
   topicText: z.string().optional(),

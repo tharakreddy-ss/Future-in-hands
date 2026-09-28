@@ -90,6 +90,8 @@ export const examService = {
   async createScheduledExam(input: {
     institutionId: string;
     classId: string;
+    subjectId?: string;
+    studentId?: string;
     createdById?: string;
     title: string;
     syllabusId?: string;
@@ -112,30 +114,69 @@ export const examService = {
       throw Object.assign(new Error("Class not found"), { status: 404 });
     }
 
-    if (!cls.enrollments.length) throw Object.assign(new Error("Add active students to this class before scheduling"), { status: 400 });
+    const topic = input.topicText?.trim() ?? "";
+    const linkedSubjects = await db.classSubject.count({ where: { classId: cls.id } });
+    let subjectName: string | undefined;
+    if (input.subjectId) {
+      const linked = await db.classSubject.findFirst({
+        where: { classId: cls.id, subjectId: input.subjectId },
+        include: { subject: { select: { name: true } } },
+      });
+      if (!linked) throw Object.assign(new Error("That subject is not assigned to this classroom."), { status: 400 });
+      subjectName = linked.subject.name;
+    } else if (!input.studentId && linkedSubjects > 0) {
+      throw Object.assign(new Error("Select a subject assigned to this classroom."), { status: 400 });
+    }
+    if (input.studentId && !subjectName && !topic) {
+      throw Object.assign(new Error("Select a subject or enter a topic to generate the test."), { status: 400 });
+    }
+    let topicText = topic || undefined;
+    let content = input.content;
+    if (input.studentId) {
+      if (subjectName && topic) {
+        topicText = topic;
+        content = `Subject: ${subjectName}\nTopic: ${topic}`;
+      } else if (subjectName) {
+        topicText = subjectName;
+        content = `Subject: ${subjectName}`;
+      } else {
+        topicText = topic;
+        content = topic;
+      }
+    }
+    const recipients = input.studentId
+      ? cls.enrollments.filter((enrollment) => enrollment.studentId === input.studentId)
+      : cls.enrollments;
+    if (!recipients.length) {
+      throw Object.assign(
+        new Error(input.studentId ? "That student is not enrolled in this classroom." : "Add active students to this class before scheduling"),
+        { status: 400 },
+      );
+    }
     if (input.syllabusId && !(await db.syllabus.findFirst({ where: { id: input.syllabusId, classId: cls.id } }))) throw Object.assign(new Error("Syllabus not found in this class"), { status: 404 });
     let sourceId = input.syllabusId;
-    if (input.topicText || input.content) {
-      const source = await db.syllabus.create({ data: { institutionId: cls.institutionId, classId: cls.id, title: input.topicText?.slice(0, 120) || input.title, content: input.content || input.topicText!, inputType: "TEXT", createdById: input.createdById } });
+    if (topicText || content) {
+      const source = await db.syllabus.create({ data: { institutionId: cls.institutionId, classId: cls.id, title: (topicText ?? input.title).slice(0, 120), content: content || topicText!, inputType: "TEXT", createdById: input.createdById } });
       sourceId = source.id;
     }
     const poolWhere = { classId: cls.id, ...(sourceId ? { syllabusId: sourceId } : {}), ...(input.difficulty && !input.mixed ? { difficulty: input.difficulty } : {}) };
     let pool = await db.question.findMany({ where: poolWhere, orderBy: { usageCount: "asc" } });
     if (pool.length < input.questionCount) {
-      await questionService.generate({ classId: cls.id, syllabusId: sourceId, count: input.questionCount - pool.length, difficulty: input.mixed ? undefined : input.difficulty, persist: true, topicName: input.topicText, syllabusText: input.content || input.topicText });
+      await questionService.generate({ classId: cls.id, syllabusId: sourceId, count: input.questionCount - pool.length, difficulty: input.mixed ? undefined : input.difficulty, persist: true, topicName: topicText, syllabusText: content || topicText });
       pool = await db.question.findMany({ where: poolWhere, orderBy: { usageCount: "asc" } });
     }
     if (pool.length < input.questionCount) throw Object.assign(new Error(`Only ${pool.length} matching questions available; ${input.questionCount} requested.`), { status: 422 });
     const selectedCount = input.questionCount;
     const examBank = shuffle(pool).sort((a, b) => a.usageCount - b.usageCount).slice(0, selectedCount);
     const bankIds = examBank.map((question) => question.id);
-    const variations = Math.max(1, Math.min(input.variationCount, 8, cls.enrollments.length));
+    const variations = Math.max(1, Math.min(input.variationCount, 8, recipients.length));
 
     const test = await db.$transaction(async (tx) => {
       const created = await tx.test.create({
         data: {
           institutionId: input.institutionId,
           classId: input.classId,
+          subjectId: input.subjectId,
           syllabusId: sourceId,
           title: input.title,
           durationMinutes: input.durationMinutes,
@@ -176,7 +217,7 @@ export const examService = {
         );
       }
 
-      const students = shuffle(cls.enrollments);
+      const students = shuffle(recipients);
       for (const [index, enrollment] of students.entries()) {
         const paper = papers[index % papers.length]!;
         const questionIds = shuffle(paper.questionIdsJson as string[]);

@@ -32,7 +32,11 @@ export default async function ClassLayout({
   params: Promise<{ classId: string }>;
 }) {
   const { classId } = await params;
-  await requireClassAccess(await requireSession(["INSTITUTION_ADMIN", "TEACHER"]), classId);
+  try {
+    await requireClassAccess(await requireSession(["INSTITUTION_ADMIN", "TEACHER"]), classId);
+  } catch {
+    notFound();
+  }
   const cls = await classService.get(classId);
   if (!cls) notFound();
 
@@ -40,14 +44,18 @@ export default async function ClassLayout({
     <div>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-sm text-violet-300">{cls.subject}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(cls.subjects.length ? cls.subjects.map((item) => item.subject.name) : cls.subject.split(",").map((name) => name.trim()).filter(Boolean)).map((name) => (
+              <span key={name} className="rounded-full border border-violet-400/25 bg-violet-500/10 px-2.5 py-0.5 text-xs text-violet-200">{name}</span>
+            ))}
+          </div>
           <h1 className="text-2xl font-semibold text-white">{cls.name}</h1>
         </div>
         <Link
-          href={`/admin/exams/new?classId=${classId}&source=syllabus`}
+          href={`/admin/exams/new?classId=${classId}`}
           className="rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#4F6BFF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(124,58,237,0.28)]"
         >
-          Generate Test
+          Create Exam
         </Link>
       </div>
       <nav className="mt-4 flex flex-wrap gap-2">

@@ -10,6 +10,23 @@ import { removePrivateObject, savePrivateObject } from "@/lib/private-storage";
 const MAX_FILE_BYTES = 20 * 1024 * 1024;
 const MAX_EXTRACTED_CHARS = 4_000_000;
 
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .optional()
+    .transform((value) => value || undefined);
+
+const subjectMetadataSchema = z.object({
+  name: z.string().trim().min(1, "Subject name is required.").max(100),
+  code: optionalText(32),
+  gradeLevel: optionalText(64),
+  curriculum: optionalText(100),
+  academicYear: optionalText(32),
+  description: optionalText(1200),
+});
+
 async function readPdf(form: FormData, field: string) {
   const file = form.get(field);
   if (!(file instanceof File) || file.size === 0) throw Object.assign(new Error(`${field === "syllabus" ? "Syllabus" : "Study material"} PDF is required.`), { status: 400 });
@@ -35,15 +52,27 @@ export function GET() {
 export async function POST(request: Request) {
   return withAuth(async (user) => {
     if (user.role !== "INSTITUTION_ADMIN") return errorJson("Forbidden", 403);
+    const contentType = request.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const metadata = subjectMetadataSchema.parse(await request.json());
+      try {
+        const subject = await subjectService.create({
+          name: metadata.name,
+          code: metadata.code,
+          description: metadata.description,
+          institutionId: requireTenant(user)!,
+          createdById: user.id,
+        });
+        return json({ id: subject.id, name: subject.name, code: subject.code, description: subject.description }, 201);
+      } catch (error) {
+        if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+          return errorJson("A subject with this name already exists.", 409);
+        }
+        throw error;
+      }
+    }
     const form = await request.formData();
-    const metadata = z.object({
-      name: z.string().trim().min(2).max(100),
-      code: z.string().trim().max(32).optional(),
-      gradeLevel: z.string().trim().max(64).optional(),
-      curriculum: z.string().trim().max(100).optional(),
-      academicYear: z.string().trim().max(32).optional(),
-      description: z.string().trim().max(1200).optional(),
-    }).parse({
+    const metadata = subjectMetadataSchema.parse({
       name: form.get("name"),
       code: form.get("code") || undefined,
       gradeLevel: form.get("gradeLevel") || undefined,
@@ -72,7 +101,7 @@ export async function POST(request: Request) {
     } catch (error) {
       await Promise.allSettled([removePrivateObject("subject-library", syllabusFileKey), removePrivateObject("subject-library", materialFileKey)]);
       if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
-        return errorJson("A subject with this name already exists in your institute.", 409);
+        return errorJson("A subject with this name already exists.", 409);
       }
       throw error;
     }

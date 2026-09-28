@@ -20,8 +20,7 @@ export default async function TeacherClassesPage() {
             students={cls._count.enrollments}
             tests={cls._count.tests}
             createdAt={cls.createdAt}
-            classroomHref="/teacher/generate"
-            generateHref={`/teacher/exams/new?classId=${cls.id}`}
+            classroomHref={`/teacher/classes/${cls.id}`}
           />
         ))}
       </div>

@@ -5,7 +5,6 @@ import { FeaturesSection } from "@/components/marketing/features";
 import { WorkflowSection } from "@/components/marketing/workflow";
 import { AnalyticsSection } from "@/components/marketing/analytics";
 import { RolesSection } from "@/components/marketing/roles";
-import { TestimonialsSection } from "@/components/marketing/testimonials";
 import { FinalCtaSection } from "@/components/marketing/final-cta";
 
 export default function PublicHomePage() {
@@ -18,7 +17,6 @@ export default function PublicHomePage() {
       <WorkflowSection />
       <AnalyticsSection />
       <RolesSection />
-      <TestimonialsSection />
       <FinalCtaSection />
     </main>
   );

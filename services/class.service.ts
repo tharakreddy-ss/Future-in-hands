@@ -1,5 +1,6 @@
 import { classRepository } from "@/repositories/class.repository";
 import { db } from "@/lib/db";
+import { httpError } from "@/lib/utils";
 
 export const classService = {
   list(institutionId: string) {
@@ -12,18 +13,41 @@ export const classService = {
       return cls;
     });
   },
-  create(input: {
+  async create(input: {
     institutionId: string;
     name: string;
-    subject: string;
     description?: string;
     academicYear: string;
     groupName: string;
     section?: string;
-    program?: string;
+    subjectIds: string[];
     createdById?: string;
   }) {
-    return classRepository.create(input);
+    const subjects = await db.subject.findMany({
+      where: { institutionId: input.institutionId, id: { in: input.subjectIds } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    });
+    if (subjects.length !== input.subjectIds.length) {
+      throw httpError("One or more selected subjects are not available.", 400);
+    }
+    return db.class.create({
+      data: {
+        institutionId: input.institutionId,
+        name: input.name,
+        description: input.description?.trim() || null,
+        academicYear: input.academicYear,
+        groupName: input.groupName,
+        section: input.section?.trim() || null,
+        createdById: input.createdById,
+        subject: subjects.map((subject) => subject.name).join(", "),
+        subjects: { create: subjects.map((subject) => ({ subjectId: subject.id })) },
+      },
+      include: {
+        subjects: { include: { subject: { select: { id: true, name: true } } } },
+        _count: { select: { enrollments: true, tests: true, questions: true } },
+      },
+    });
   },
   async performance(classId: string) {
     const attempts = await db.studentTestAttempt.findMany({
