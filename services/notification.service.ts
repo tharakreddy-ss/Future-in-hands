@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import type { NotificationType } from "@prisma/client";
 
+function isUniqueConflict(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+}
+
 async function upsertNotice(input: {
   institutionId: string;
   studentId: string;
@@ -9,30 +13,77 @@ async function upsertNotice(input: {
   title: string;
   body: string;
 }) {
-  return db.notification.upsert({
-    where: {
-      studentId_testId_type: {
-        studentId: input.studentId,
-        testId: input.testId,
-        type: input.type,
-      },
+  const uniqueWhere = {
+    studentId_testId_type: {
+      studentId: input.studentId,
+      testId: input.testId,
+      type: input.type,
     },
-    update: input.type === "EXAM_RESCHEDULED" ? { title: input.title, body: input.body, readAt: null } : {},
-    create: input,
-  });
+  };
+  const rescheduleUpdate =
+    input.type === "EXAM_RESCHEDULED" ? { title: input.title, body: input.body, readAt: null } : {};
+  try {
+    return await db.notification.upsert({
+      where: uniqueWhere,
+      update: rescheduleUpdate,
+      create: input,
+    });
+  } catch (error) {
+    if (!isUniqueConflict(error)) throw error;
+    if (input.type === "EXAM_RESCHEDULED") {
+      return db.notification.update({
+        where: uniqueWhere,
+        data: rescheduleUpdate,
+      });
+    }
+    return db.notification.findUniqueOrThrow({ where: uniqueWhere });
+  }
 }
 
 export const notificationService = {
-  list(studentId: string) {
-    return db.notification.findMany({
+  async list(studentId: string) {
+    const items = await db.notification.findMany({
       where: { studentId },
+      include: {
+        test: {
+          select: {
+            id: true,
+            title: true,
+            classId: true,
+            class: { select: { name: true, subject: true } },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
       take: 40,
     });
+    const resultTestIds = items
+      .filter((item) => item.type === "RESULT_AVAILABLE" && item.testId)
+      .map((item) => item.testId as string);
+    const attempts = resultTestIds.length
+      ? await db.studentTestAttempt.findMany({
+          where: { studentId, status: "SUBMITTED", testId: { in: resultTestIds } },
+          select: { id: true, testId: true },
+        })
+      : [];
+    const attemptByTest = new Map(attempts.map((row) => [row.testId, row.id]));
+    return items.map((item) => ({
+      ...item,
+      resultAttemptId:
+        item.type === "RESULT_AVAILABLE" && item.testId ? (attemptByTest.get(item.testId) ?? null) : null,
+    }));
   },
 
   unreadCount(studentId: string) {
     return db.notification.count({ where: { studentId, readAt: null } });
+  },
+  recentUnread(studentId: string, take = 3) {
+    return db.notification.findMany({
+      where: { studentId, readAt: null },
+      orderBy: { createdAt: "desc" },
+      take,
+      select: { id: true, title: true, body: true, type: true, createdAt: true },
+    });
   },
 
   async markRead(id: string, studentId: string) {

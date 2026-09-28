@@ -118,7 +118,15 @@ export const analyticsService = {
   async student(studentId: string) {
     const attempts = await db.studentTestAttempt.findMany({
       where: { studentId, status: "SUBMITTED" },
-      include: { test: { include: { class: true } } },
+      select: {
+        id: true,
+        percentage: true,
+        score: true,
+        totalQuestions: true,
+        submittedAt: true,
+        startedAt: true,
+        test: { select: { title: true } },
+      },
       orderBy: { submittedAt: "desc" },
     });
     const scores = attempts.map((row) => row.percentage);

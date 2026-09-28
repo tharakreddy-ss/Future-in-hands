@@ -1,7 +1,9 @@
 import { studentRepository } from "@/repositories/student.repository";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { fullName, splitName } from "@/lib/utils";
+import { fullName, httpError, splitName } from "@/lib/utils";
+import { removePrivateObject } from "@/lib/private-storage";
+import { testService } from "@/services/test.service";
 
 async function nextStudentIdentifier(institutionId: string, prefix: string) {
   const last = await db.student.findFirst({
@@ -12,40 +14,19 @@ async function nextStudentIdentifier(institutionId: string, prefix: string) {
   return `${prefix}${String(Number.isFinite(n) ? n : 1).padStart(3, "0")}`;
 }
 
-export function presentStudent(student: {
-  id: string;
-  firstName: string;
-  lastName: string;
-  studentIdentifier: string;
-  status: "ACTIVE" | "INACTIVE";
-  photoKey: string | null;
-  rollNumber: string | null;
-  enrollments: Array<{
-    classId: string;
-    class: { name: string; section: string | null; academicYear?: string };
-  }>;
-}) {
-  const classes = student.enrollments.map((row) => ({
-    id: row.classId,
-    name: row.class.name,
-    section: row.class.section ?? "",
-    academicYear: row.class.academicYear ?? "",
-  }));
-  const primary = classes[0];
+function mean(values: number[]) {
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+/** Last 5 submitted scores vs the previous 5. Numeric delta only when both groups have 5 exams. */
+export function examImprovement(scores: number[]) {
+  const lastFive = scores.slice(-5);
+  const prior = scores.slice(-10, -5);
+  const comparable = lastFive.length === 5 && prior.length === 5;
   return {
-    id: student.id,
-    firstName: student.firstName,
-    lastName: student.lastName,
-    name: fullName(student.firstName, student.lastName),
-    studentIdentifier: student.studentIdentifier,
-    status: student.status,
-    rollNumber: student.rollNumber,
-    photoUrl: student.photoKey ? `/api/students/${student.id}/photo` : null,
-    classId: primary?.id ?? null,
-    className: primary?.name ?? "Unassigned",
-    section: primary?.section || "—",
-    academicYear: primary?.academicYear || null,
-    classes,
+    comparable,
+    delta: comparable ? Math.round(mean(lastFive) - mean(prior)) : 0,
+    lastAvg: lastFive.length ? mean(lastFive) : 0,
   };
 }
 
@@ -130,11 +111,117 @@ export const studentService = {
   enroll(classId: string, studentId: string) {
     return studentRepository.enroll(classId, studentId);
   },
+  enrollmentCount(studentId: string) {
+    return db.classStudent.count({ where: { studentId } });
+  },
+  classSummariesForStudent(studentId: string, take = 4) {
+    return db.classStudent.findMany({
+      where: { studentId },
+      orderBy: { joinedAt: "desc" },
+      take,
+      select: {
+        id: true,
+        class: {
+          select: {
+            id: true,
+            name: true,
+            subject: true,
+            academicYear: true,
+            section: true,
+            groupName: true,
+          },
+        },
+      },
+    });
+  },
   async classesForStudent(studentId: string) {
     return db.classStudent.findMany({
       where: { studentId },
-      include: { class: { include: { tests: true } } },
+      include: {
+        class: {
+          select: {
+            id: true,
+            name: true,
+            subject: true,
+            description: true,
+            academicYear: true,
+            section: true,
+            groupName: true,
+            program: true,
+            createdBy: { select: { name: true } },
+            _count: { select: { syllabuses: true, subjects: true } },
+          },
+        },
+      },
     });
+  },
+  /** Returns the enrollment only when this student is in the class; otherwise null. */
+  async classForEnrolledStudent(studentId: string, classId: string) {
+    return db.classStudent.findUnique({
+      where: { classId_studentId: { classId, studentId } },
+      include: {
+        class: {
+          include: {
+            createdBy: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+  },
+  /** Enrolled classroom only: class metadata, syllabus/topics, linked subjects, and this student's assignments. */
+  async classroomForStudent(studentId: string, classId: string) {
+    const enrollment = await db.classStudent.findUnique({
+      where: { classId_studentId: { classId, studentId } },
+      include: {
+        class: {
+          include: {
+            createdBy: { select: { id: true, name: true } },
+            syllabuses: {
+              select: {
+                id: true,
+                title: true,
+                inputType: true,
+                createdAt: true,
+                topics: { select: { id: true, name: true, parentTopicId: true, weightage: true } },
+              },
+              orderBy: { createdAt: "desc" },
+            },
+            subjects: {
+              include: {
+                subject: {
+                  select: {
+                    id: true,
+                    name: true,
+                    description: true,
+                    syllabusFileName: true,
+                    materialFileName: true,
+                    createdAt: true,
+                    units: {
+                      orderBy: { order: "asc" },
+                      select: {
+                        id: true,
+                        name: true,
+                        topics: { orderBy: { order: "asc" }, select: { name: true } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!enrollment) return null;
+    const assignments = await testService.forStudentInClass(studentId, classId);
+    const testIds = assignments.map((row) => row.testId);
+    const attempts = testIds.length
+      ? await db.studentTestAttempt.findMany({
+          where: { studentId, testId: { in: testIds } },
+          select: { id: true, testId: true, status: true },
+        })
+      : [];
+    return { class: enrollment.class, assignments, attempts };
   },
   async stats(studentId: string) {
     const submitted = await db.studentTestAttempt.findMany({
@@ -195,15 +282,37 @@ export const studentService = {
       const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
       const status =
         avg >= 85 ? "Excellent" : avg >= 75 ? "Good" : avg >= 60 ? "Average" : "Needs Improvement";
-      return { name, average: avg, status };
+      return { name, average: avg, status, attempts: vals.length };
     });
-    const lastFive = scores.slice(-5);
-    const prior = scores.slice(-10, -5);
-    const lastAvg = lastFive.length ? lastFive.reduce((a, b) => a + b, 0) / lastFive.length : 0;
-    const priorAvg = prior.length ? prior.reduce((a, b) => a + b, 0) / prior.length : lastAvg;
-    const delta = Math.round(lastAvg - priorAvg);
+    const { comparable, delta, lastAvg } = examImprovement(scores);
     const strengths = subjects.filter((s) => s.average >= 75).map((s) => s.name);
     const weak = subjects.filter((s) => s.average < 75).map((s) => s.name);
+    const name = fullName(student.firstName, student.lastName);
+    const overallAvg = scores.length ? Math.round(mean(scores)) : 0;
+    let subjectTakeaway = "";
+    if (subjects.length) {
+      const strongest = [...subjects].sort((a, b) => b.average - a.average)[0];
+      const weakest = [...subjects].sort((a, b) => a.average - b.average)[0];
+      if (strengths.length && weak.length) {
+        subjectTakeaway = ` Strongest subject so far is ${strongest.name} at ${Math.round(strongest.average)}%. Weakest is ${weakest.name} at ${Math.round(weakest.average)}% (below 75%).`;
+      } else if (strengths.length) {
+        subjectTakeaway = ` Every subject averages 75% or higher. Strongest is ${strongest.name} at ${Math.round(strongest.average)}%.`;
+      } else {
+        subjectTakeaway = ` No subject has reached a 75% average yet. Lowest is ${weakest.name} at ${Math.round(weakest.average)}%.`;
+      }
+    }
+    let summary: string;
+    if (attempts.length === 0) {
+      summary = `${name} has not submitted any tests yet.`;
+    } else if (!comparable) {
+      summary = `${name} has ${attempts.length} submitted ${attempts.length === 1 ? "exam" : "exams"} with an average of ${overallAvg}%. Improvement is shown after 10 submitted exams (last 5 vs previous 5).${subjectTakeaway}`;
+    } else if (delta === 0) {
+      summary = `${name}'s last 5 exams average ${Math.round(lastAvg)}%, matching the previous 5 (no change).${subjectTakeaway}`;
+    } else if (delta > 0) {
+      summary = `${name}'s last 5 exams average ${Math.round(lastAvg)}%, ${Math.abs(delta)} points higher than the previous 5.${subjectTakeaway}`;
+    } else {
+      summary = `${name}'s last 5 exams average ${Math.round(lastAvg)}%, ${Math.abs(delta)} points lower than the previous 5.${subjectTakeaway}`;
+    }
     const history = attempts
       .slice()
       .reverse()
@@ -258,24 +367,66 @@ export const studentService = {
       subjects,
       history,
       insights: {
-        summary:
-          attempts.length === 0
-            ? `${fullName(student.firstName, student.lastName)} has not submitted any tests yet.`
-            : delta === 0
-              ? `${fullName(student.firstName, student.lastName)} is holding a steady ${Math.round(lastAvg)}% average across recent tests.`
-              : `${fullName(student.firstName, student.lastName)} has ${delta > 0 ? "improved" : "dropped"} by ${Math.abs(delta)}% during the last five tests.`,
-        strengths: strengths.length ? strengths : subjects.map((s) => s.name).slice(0, 3),
-        weak: (weak.length
-          ? weak
-          : subjects.length
-            ? [subjects.slice().sort((a, b) => a.average - b.average)[0].name]
-            : history
-                .slice()
-                .sort((a, b) => a.percentage - b.percentage)
-                .slice(0, 2)
-                .map((row) => row.examName)
-        ).filter(Boolean),
+        summary,
+        strengths,
+        weak,
       },
     };
+  },
+  async updateOwnProfile(
+    studentId: string,
+    data: {
+      firstName: string;
+      lastName: string;
+      phone: string | null;
+      gender: string | null;
+      dateOfBirth: Date | null;
+      address: string | null;
+      guardianName: string | null;
+      guardianPhone: string | null;
+    },
+  ) {
+    const student = await db.student.findUnique({ where: { id: studentId } });
+    if (!student) throw httpError("Student not found", 404);
+    await db.student.update({
+      where: { id: studentId },
+      data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        gender: data.gender,
+        dateOfBirth: data.dateOfBirth,
+        address: data.address,
+        guardianName: data.guardianName,
+        guardianPhone: data.guardianPhone,
+      },
+    });
+    await db.user.update({
+      where: { id: student.userId },
+      data: { name: fullName(data.firstName, data.lastName) },
+    });
+    return studentRepository.get(studentId);
+  },
+  async changeOwnPassword(studentId: string, currentPassword: string, nextPassword: string) {
+    const student = await db.student.findUnique({
+      where: { id: studentId },
+      include: { user: { select: { id: true, passwordHash: true } } },
+    });
+    if (!student) throw httpError("Student not found", 404);
+    if (!(await verifyPassword(currentPassword, student.user.passwordHash))) {
+      throw httpError("Current password is incorrect", 400);
+    }
+    await db.user.update({
+      where: { id: student.user.id },
+      data: { passwordHash: await hashPassword(nextPassword) },
+    });
+  },
+  async setOwnPhoto(studentId: string, photoKey: string) {
+    const student = await db.student.findUnique({ where: { id: studentId }, select: { photoKey: true } });
+    if (!student) throw httpError("Student not found", 404);
+    await db.student.update({ where: { id: studentId }, data: { photoKey } });
+    if (student.photoKey && student.photoKey !== photoKey) {
+      await removePrivateObject("student-photos", student.photoKey);
+    }
   },
 };

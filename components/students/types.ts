@@ -59,7 +59,7 @@ export type StudentProfile = {
     total: number;
     percentage: number;
   }>;
-  subjects: Array<{ name: string; average: number; status: string }>;
+  subjects: Array<{ name: string; average: number; status: string; attempts: number }>;
   history: Array<{
     id: string;
     examName: string;

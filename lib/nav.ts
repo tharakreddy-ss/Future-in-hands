@@ -17,7 +17,8 @@ export type NavKey =
   | "roles"
   | "profile"
   | "notifications"
-  | "help";
+  | "help"
+  | "practice";
 
 export type NavItem = { href: string; label: string; icon: NavKey };
 
@@ -65,6 +66,7 @@ export function navForRole(role: Role): NavItem[] {
     { href: "/student/dashboard", label: "Dashboard", icon: "dashboard" },
     { href: "/student/classes", label: "Classes", icon: "classes" },
     { href: "/student/tests", label: "Exams", icon: "exams" },
+    { href: "/student/practice", label: "Practice", icon: "practice" },
     { href: "/student/results", label: "Results", icon: "reports" },
     { href: "/student/analytics", label: "Analytics", icon: "analytics" },
     { href: "/student/notifications", label: "Notifications", icon: "notifications" },
