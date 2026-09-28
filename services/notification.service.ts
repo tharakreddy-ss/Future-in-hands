@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import type { NotificationType } from "@prisma/client";
 
+function isUniqueConflict(error: unknown) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "P2002";
+}
+
 async function upsertNotice(input: {
   institutionId: string;
   studentId: string;
@@ -9,17 +13,31 @@ async function upsertNotice(input: {
   title: string;
   body: string;
 }) {
-  return db.notification.upsert({
-    where: {
-      studentId_testId_type: {
-        studentId: input.studentId,
-        testId: input.testId,
-        type: input.type,
-      },
+  const uniqueWhere = {
+    studentId_testId_type: {
+      studentId: input.studentId,
+      testId: input.testId,
+      type: input.type,
     },
-    update: input.type === "EXAM_RESCHEDULED" ? { title: input.title, body: input.body, readAt: null } : {},
-    create: input,
-  });
+  };
+  const rescheduleUpdate =
+    input.type === "EXAM_RESCHEDULED" ? { title: input.title, body: input.body, readAt: null } : {};
+  try {
+    return await db.notification.upsert({
+      where: uniqueWhere,
+      update: rescheduleUpdate,
+      create: input,
+    });
+  } catch (error) {
+    if (!isUniqueConflict(error)) throw error;
+    if (input.type === "EXAM_RESCHEDULED") {
+      return db.notification.update({
+        where: uniqueWhere,
+        data: rescheduleUpdate,
+      });
+    }
+    return db.notification.findUniqueOrThrow({ where: uniqueWhere });
+  }
 }
 
 export const notificationService = {

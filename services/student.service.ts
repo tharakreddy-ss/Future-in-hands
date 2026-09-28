@@ -12,6 +12,22 @@ async function nextStudentIdentifier(institutionId: string, prefix: string) {
   return `${prefix}${String(Number.isFinite(n) ? n : 1).padStart(3, "0")}`;
 }
 
+function mean(values: number[]) {
+  return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+/** Last 5 submitted scores vs the previous 5. Numeric delta only when both groups have 5 exams. */
+export function examImprovement(scores: number[]) {
+  const lastFive = scores.slice(-5);
+  const prior = scores.slice(-10, -5);
+  const comparable = lastFive.length === 5 && prior.length === 5;
+  return {
+    comparable,
+    delta: comparable ? Math.round(mean(lastFive) - mean(prior)) : 0,
+    lastAvg: lastFive.length ? mean(lastFive) : 0,
+  };
+}
+
 export const studentService = {
   list(institutionId: string) {
     return studentRepository.list(institutionId);
@@ -96,6 +112,19 @@ export const studentService = {
       include: { class: { include: { tests: true } } },
     });
   },
+  /** Returns the enrollment only when this student is in the class; otherwise null. */
+  async classForEnrolledStudent(studentId: string, classId: string) {
+    return db.classStudent.findUnique({
+      where: { classId_studentId: { classId, studentId } },
+      include: {
+        class: {
+          include: {
+            createdBy: { select: { id: true, name: true } },
+          },
+        },
+      },
+    });
+  },
   async stats(studentId: string) {
     const submitted = await db.studentTestAttempt.findMany({
       where: { studentId, status: "SUBMITTED" },
@@ -155,15 +184,37 @@ export const studentService = {
       const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
       const status =
         avg >= 85 ? "Excellent" : avg >= 75 ? "Good" : avg >= 60 ? "Average" : "Needs Improvement";
-      return { name, average: avg, status };
+      return { name, average: avg, status, attempts: vals.length };
     });
-    const lastFive = scores.slice(-5);
-    const prior = scores.slice(-10, -5);
-    const lastAvg = lastFive.length ? lastFive.reduce((a, b) => a + b, 0) / lastFive.length : 0;
-    const priorAvg = prior.length ? prior.reduce((a, b) => a + b, 0) / prior.length : lastAvg;
-    const delta = Math.round(lastAvg - priorAvg);
+    const { comparable, delta, lastAvg } = examImprovement(scores);
     const strengths = subjects.filter((s) => s.average >= 75).map((s) => s.name);
     const weak = subjects.filter((s) => s.average < 75).map((s) => s.name);
+    const name = fullName(student.firstName, student.lastName);
+    const overallAvg = scores.length ? Math.round(mean(scores)) : 0;
+    let subjectTakeaway = "";
+    if (subjects.length) {
+      const strongest = [...subjects].sort((a, b) => b.average - a.average)[0];
+      const weakest = [...subjects].sort((a, b) => a.average - b.average)[0];
+      if (strengths.length && weak.length) {
+        subjectTakeaway = ` Strongest subject so far is ${strongest.name} at ${Math.round(strongest.average)}%. Weakest is ${weakest.name} at ${Math.round(weakest.average)}% (below 75%).`;
+      } else if (strengths.length) {
+        subjectTakeaway = ` Every subject averages 75% or higher. Strongest is ${strongest.name} at ${Math.round(strongest.average)}%.`;
+      } else {
+        subjectTakeaway = ` No subject has reached a 75% average yet. Lowest is ${weakest.name} at ${Math.round(weakest.average)}%.`;
+      }
+    }
+    let summary: string;
+    if (attempts.length === 0) {
+      summary = `${name} has not submitted any tests yet.`;
+    } else if (!comparable) {
+      summary = `${name} has ${attempts.length} submitted ${attempts.length === 1 ? "exam" : "exams"} with an average of ${overallAvg}%. Improvement is shown after 10 submitted exams (last 5 vs previous 5).${subjectTakeaway}`;
+    } else if (delta === 0) {
+      summary = `${name}'s last 5 exams average ${Math.round(lastAvg)}%, matching the previous 5 (no change).${subjectTakeaway}`;
+    } else if (delta > 0) {
+      summary = `${name}'s last 5 exams average ${Math.round(lastAvg)}%, ${Math.abs(delta)} points higher than the previous 5.${subjectTakeaway}`;
+    } else {
+      summary = `${name}'s last 5 exams average ${Math.round(lastAvg)}%, ${Math.abs(delta)} points lower than the previous 5.${subjectTakeaway}`;
+    }
     const history = attempts
       .slice()
       .reverse()
@@ -210,23 +261,9 @@ export const studentService = {
       subjects,
       history,
       insights: {
-        summary:
-          attempts.length === 0
-            ? `${fullName(student.firstName, student.lastName)} has not submitted any tests yet.`
-            : delta === 0
-              ? `${fullName(student.firstName, student.lastName)} is holding a steady ${Math.round(lastAvg)}% average across recent tests.`
-              : `${fullName(student.firstName, student.lastName)} has ${delta > 0 ? "improved" : "dropped"} by ${Math.abs(delta)}% during the last five tests.`,
-        strengths: strengths.length ? strengths : subjects.map((s) => s.name).slice(0, 3),
-        weak: (weak.length
-          ? weak
-          : subjects.length
-            ? [subjects.slice().sort((a, b) => a.average - b.average)[0].name]
-            : history
-                .slice()
-                .sort((a, b) => a.percentage - b.percentage)
-                .slice(0, 2)
-                .map((row) => row.examName)
-        ).filter(Boolean),
+        summary,
+        strengths,
+        weak,
       },
     };
   },

@@ -22,19 +22,21 @@ export function ResultSummary({
           <span className="text-xl text-violet-300">{formatPercent(percentage)}</span>
         </p>
       </Card>
-      <Card>
-        <h3 className="font-semibold">Topic coverage</h3>
-        <ul className="mt-3 space-y-2">
-          {topics.map((topic) => (
-            <li key={topic.topic} className="flex justify-between text-sm">
-              <span>{topic.topic}</span>
-              <span>
-                {topic.correct}/{topic.total}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      {topics.length > 0 ? (
+        <Card>
+          <h3 className="font-semibold">Topic coverage</h3>
+          <ul className="mt-3 space-y-2">
+            {topics.map((topic) => (
+              <li key={topic.topic} className="flex justify-between text-sm">
+                <span>{topic.topic}</span>
+                <span>
+                  {topic.correct}/{topic.total}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
     </div>
   );
 }
