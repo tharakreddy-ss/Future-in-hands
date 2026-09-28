@@ -1,6 +1,19 @@
 import { attemptDeadline } from "@/lib/attempt-deadline";
 import { db } from "@/lib/db";
 
+const attemptReviewInclude = {
+  student: true,
+  answers: true,
+  assignment: true,
+  test: {
+    include: {
+      class: true,
+      subject: true,
+      questions: { include: { question: { include: { topic: true } } } },
+    },
+  },
+} as const;
+
 export const resultService = {
   async grade(attemptId: string) {
     return db.$transaction(async (tx) => {
@@ -75,17 +88,13 @@ export const resultService = {
   getByAttempt(attemptId: string) {
     return db.studentTestAttempt.findUnique({
       where: { id: attemptId },
-      include: {
-        student: true,
-        answers: true,
-        assignment: true,
-        test: {
-          include: {
-            class: true,
-            questions: { include: { question: { include: { topic: true } } } },
-          },
-        },
-      },
+      include: attemptReviewInclude,
+    });
+  },
+  getSubmittedForStudent(attemptId: string, studentId: string) {
+    return db.studentTestAttempt.findFirst({
+      where: { id: attemptId, studentId, status: "SUBMITTED" },
+      include: attemptReviewInclude,
     });
   },
 };
@@ -130,13 +139,17 @@ export function reviewFromAttempt(result: AttemptResult) {
       : marked === true || selectedKey === correctKey
         ? "correct"
         : "incorrect";
-    const topic = row.question.topic?.name || row.question.subtopic || null;
+    const topicName = row.question.topic?.name?.trim() || null;
+    const subtopic = row.question.subtopic?.trim() || null;
+    const topicGroup = topicName || subtopic;
     return [
       {
         questionId,
         order: index + 1,
         stem: row.question.questionText,
-        topic,
+        topic: topicGroup,
+        subtopic: topicName && subtopic && subtopic !== topicName ? subtopic : null,
+        options,
         selectedKey,
         selectedText: selectedKey ? optionLabel(options, selectedKey) : null,
         correctKey,
@@ -147,17 +160,21 @@ export function reviewFromAttempt(result: AttemptResult) {
     ];
   });
 
-  const topicTotals = new Map<string, { correct: number; total: number }>();
+  const topicTotals = new Map<string, { correct: number; wrong: number; unanswered: number; total: number }>();
   for (const item of items) {
     if (!item.topic) continue;
-    const current = topicTotals.get(item.topic) ?? { correct: 0, total: 0 };
+    const current = topicTotals.get(item.topic) ?? { correct: 0, wrong: 0, unanswered: 0, total: 0 };
     current.total += 1;
     if (item.status === "correct") current.correct += 1;
+    else if (item.status === "incorrect") current.wrong += 1;
+    else current.unanswered += 1;
     topicTotals.set(item.topic, current);
   }
   const topics = [...topicTotals.entries()].map(([topic, value]) => ({
     topic,
     correct: value.correct,
+    wrong: value.wrong,
+    unanswered: value.unanswered,
     total: value.total,
   }));
 
