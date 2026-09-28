@@ -1,14 +1,32 @@
+import { requireSession } from "@/lib/auth";
+import { studentService } from "@/services/student.service";
 import { PageHeader } from "@/components/layout/skeleton";
-import { Card } from "@/components/ui/card";
+import { StudentHelp } from "@/components/help/student-help";
 
-export default function StudentHelpPage() {
+export default async function StudentHelpPage() {
+  const user = await requireSession(["STUDENT"]);
+  let institutionName: string | null = null;
+  let institutionEmail: string | null = null;
+  let institutionPhone: string | null = null;
+  if (user.studentId) {
+    const student = await studentService.get(user.studentId);
+    institutionName = student?.institution.name ?? null;
+    institutionEmail = student?.institution.email ?? null;
+    institutionPhone = student?.institution.phone ?? null;
+  }
+
   return (
     <div>
-      <PageHeader title="Help & Support" subtitle="Getting started, exams, and results." />
-      <div className="mt-6 grid gap-4 md:grid-cols-2">
-        {["Getting Started", "Creating Exams", "AI Question Generation", "Student Management", "Reports"].map((item) => (
-          <Card key={item}>{item}</Card>
-        ))}
+      <PageHeader
+        title="Help"
+        subtitle="Student guides for exams, results, classes, notifications, and your profile. This is not a staff help page."
+      />
+      <div className="mt-6">
+        <StudentHelp
+          institutionName={institutionName}
+          institutionEmail={institutionEmail}
+          institutionPhone={institutionPhone}
+        />
       </div>
     </div>
   );

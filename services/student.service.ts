@@ -1,7 +1,8 @@
 import { studentRepository } from "@/repositories/student.repository";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { fullName, splitName } from "@/lib/utils";
+import { fullName, httpError, splitName } from "@/lib/utils";
+import { removePrivateObject } from "@/lib/private-storage";
 import { testService } from "@/services/test.service";
 
 async function nextStudentIdentifier(institutionId: string, prefix: string) {
@@ -337,5 +338,61 @@ export const studentService = {
         weak,
       },
     };
+  },
+  async updateOwnProfile(
+    studentId: string,
+    data: {
+      firstName: string;
+      lastName: string;
+      phone: string | null;
+      gender: string | null;
+      dateOfBirth: Date | null;
+      address: string | null;
+      guardianName: string | null;
+      guardianPhone: string | null;
+    },
+  ) {
+    const student = await db.student.findUnique({ where: { id: studentId } });
+    if (!student) throw httpError("Student not found", 404);
+    await db.student.update({
+      where: { id: studentId },
+      data: {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+        gender: data.gender,
+        dateOfBirth: data.dateOfBirth,
+        address: data.address,
+        guardianName: data.guardianName,
+        guardianPhone: data.guardianPhone,
+      },
+    });
+    await db.user.update({
+      where: { id: student.userId },
+      data: { name: fullName(data.firstName, data.lastName) },
+    });
+    return studentRepository.get(studentId);
+  },
+  async changeOwnPassword(studentId: string, currentPassword: string, nextPassword: string) {
+    const student = await db.student.findUnique({
+      where: { id: studentId },
+      include: { user: { select: { id: true, passwordHash: true } } },
+    });
+    if (!student) throw httpError("Student not found", 404);
+    if (!(await verifyPassword(currentPassword, student.user.passwordHash))) {
+      throw httpError("Current password is incorrect", 400);
+    }
+    await db.user.update({
+      where: { id: student.user.id },
+      data: { passwordHash: await hashPassword(nextPassword) },
+    });
+  },
+  async setOwnPhoto(studentId: string, photoKey: string) {
+    const student = await db.student.findUnique({ where: { id: studentId }, select: { photoKey: true } });
+    if (!student) throw httpError("Student not found", 404);
+    await db.student.update({ where: { id: studentId }, data: { photoKey } });
+    if (student.photoKey && student.photoKey !== photoKey) {
+      await removePrivateObject("student-photos", student.photoKey);
+    }
   },
 };
