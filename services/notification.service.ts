@@ -41,12 +41,37 @@ async function upsertNotice(input: {
 }
 
 export const notificationService = {
-  list(studentId: string) {
-    return db.notification.findMany({
+  async list(studentId: string) {
+    const items = await db.notification.findMany({
       where: { studentId },
+      include: {
+        test: {
+          select: {
+            id: true,
+            title: true,
+            classId: true,
+            class: { select: { name: true, subject: true } },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
       take: 40,
     });
+    const resultTestIds = items
+      .filter((item) => item.type === "RESULT_AVAILABLE" && item.testId)
+      .map((item) => item.testId as string);
+    const attempts = resultTestIds.length
+      ? await db.studentTestAttempt.findMany({
+          where: { studentId, status: "SUBMITTED", testId: { in: resultTestIds } },
+          select: { id: true, testId: true },
+        })
+      : [];
+    const attemptByTest = new Map(attempts.map((row) => [row.testId, row.id]));
+    return items.map((item) => ({
+      ...item,
+      resultAttemptId:
+        item.type === "RESULT_AVAILABLE" && item.testId ? (attemptByTest.get(item.testId) ?? null) : null,
+    }));
   },
 
   unreadCount(studentId: string) {
