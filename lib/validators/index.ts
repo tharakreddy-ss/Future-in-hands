@@ -136,6 +136,95 @@ export const examSchema = z.object({
   endAt: z.string().min(1),
 });
 
+export const STAFF_CATEGORIES = ["TEACHING", "NON_TEACHING", "LIBRARY", "SECURITY", "MANAGEMENT", "OTHER"] as const;
+export const STAFF_STATUSES = ["ACTIVE", "INACTIVE"] as const;
+
+const staffCategory = z.enum(STAFF_CATEGORIES, {
+  error: `Category must be one of: ${STAFF_CATEGORIES.join(", ")}.`,
+});
+const staffStatus = z.enum(STAFF_STATUSES, { error: "Status must be ACTIVE or INACTIVE." });
+
+const blankToNull = (value: unknown) => (typeof value === "string" && value.trim() === "" ? null : value);
+
+/** undefined = leave unchanged, null or "" = clear. */
+const staffText = (label: string, max: number) =>
+  z.preprocess(
+    blankToNull,
+    z.string({ error: `${label} must be text.` }).trim().max(max, `${label} must be at most ${max} characters.`).nullish(),
+  );
+
+const staffDate = (label: string, { past = false } = {}) =>
+  z.preprocess(
+    blankToNull,
+    z
+      .string({ error: `${label} must be a date.` })
+      .nullish()
+      .transform((value, ctx) => {
+        if (value == null) return value;
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+          ctx.addIssue({ code: "custom", message: `${label} is not a valid date.` });
+          return z.NEVER;
+        }
+        if (past && date.getTime() > Date.now()) {
+          ctx.addIssue({ code: "custom", message: `${label} cannot be in the future.` });
+          return z.NEVER;
+        }
+        return date;
+      }),
+  );
+
+const staffRequiredText = (label: string, max: number) =>
+  z
+    .string({ error: `${label} is required.` })
+    .trim()
+    .min(1, `${label} is required.`)
+    .max(max, `${label} must be at most ${max} characters.`);
+
+const staffNumber = staffRequiredText("Staff number", 40)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9\-/_.]*$/, "Staff number may only contain letters, numbers, - / _ and .")
+  .transform((value) => value.toUpperCase());
+
+const staffFields = {
+  staffNumber,
+  firstName: staffRequiredText("First name", 80),
+  lastName: staffRequiredText("Last name", 80),
+  category: staffCategory,
+  designation: staffRequiredText("Designation", 120),
+  department: staffText("Department", 120),
+  qualification: staffText("Qualification", 200),
+  email: z.preprocess(
+    blankToNull,
+    z.string({ error: "Email must be text." }).trim().toLowerCase().email("Email is not valid.").max(254).nullish(),
+  ),
+  phone: staffText("Phone", 32),
+  dateOfBirth: staffDate("Date of birth", { past: true }),
+  gender: staffText("Gender", 32),
+  joiningDate: staffDate("Joining date"),
+  address: staffText("Address", 500),
+  emergencyContactName: staffText("Emergency contact name", 120),
+  emergencyContactPhone: staffText("Emergency contact phone", 32),
+  emergencyContactRelation: staffText("Emergency contact relation", 60),
+};
+
+/** Unknown keys (institutionId, userId, status, photoKey, ...) are stripped. */
+export const staffCreateSchema = z.object(staffFields);
+
+export const staffUpdateSchema = z
+  .object(staffFields)
+  .partial()
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "Provide at least one field to update.",
+  });
+
+export const staffStatusSchema = z.object({ status: staffStatus });
+
+export const staffListQuerySchema = z.object({
+  q: z.string().trim().max(100, "Search must be at most 100 characters.").optional(),
+  category: staffCategory.optional(),
+  status: staffStatus.optional(),
+});
+
 export const generateQuestionsSchema = z.object({
   classId: z.string().min(1),
   count: z.number().int().min(1).max(100).default(5),

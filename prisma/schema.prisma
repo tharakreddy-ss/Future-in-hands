@@ -104,6 +104,20 @@ enum AiUsageKind {
   QUESTION_VARIANT
 }
 
+enum StaffCategory {
+  TEACHING
+  NON_TEACHING
+  LIBRARY
+  SECURITY
+  MANAGEMENT
+  OTHER
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model Institution {
   id                 String             @id @default(cuid())
   name               String
@@ -115,6 +129,7 @@ model Institution {
   subscriptionPlan   Plan               @default(STARTER) @map("subscription_plan")
   subscriptionStatus SubscriptionStatus @default(TRIAL) @map("subscription_status")
   studentIdPrefix    String             @default("STU") @map("student_id_prefix")
+  staffIdPrefix      String             @default("EMP") @map("staff_id_prefix")
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
@@ -127,6 +142,7 @@ model Institution {
   aiUsage       AiUsage[]
   notifications Notification[]
   subjects      Subject[]
+  staff         Staff[]
 
   @@map("institutions")
 }
@@ -144,6 +160,7 @@ model User {
 
   institution    Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
   student        Student?
+  staff          Staff?
   createdClasses Class[]      @relation("ClassCreatedBy")
   createdSyllabi Syllabus[]   @relation("SyllabusCreatedBy")
   createdTests   Test[]       @relation("TestCreatedBy")
@@ -183,6 +200,40 @@ model Student {
   @@index([institutionId])
   @@index([institutionId, academicYear])
   @@map("students")
+}
+
+model Staff {
+  id                       String        @id @default(cuid())
+  institutionId            String        @map("institution_id")
+  userId                   String?       @unique @map("user_id")
+  staffNumber              String        @map("staff_number")
+  firstName                String        @map("first_name")
+  lastName                 String        @map("last_name")
+  photoKey                 String?       @map("photo_key")
+  category                 StaffCategory
+  designation              String
+  department               String?
+  qualification            String?
+  email                    String?
+  phone                    String?
+  dateOfBirth              DateTime?     @map("date_of_birth")
+  gender                   String?
+  joiningDate              DateTime?     @map("joining_date")
+  address                  String?
+  emergencyContactName     String?       @map("emergency_contact_name")
+  emergencyContactPhone    String?       @map("emergency_contact_phone")
+  emergencyContactRelation String?       @map("emergency_contact_relation")
+  status                   StaffStatus   @default(ACTIVE)
+  createdAt                DateTime      @default(now()) @map("created_at")
+  updatedAt                DateTime      @updatedAt @map("updated_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([institutionId, staffNumber])
+  @@index([institutionId, category])
+  @@index([institutionId, status])
+  @@map("staff")
 }
 
 model Class {

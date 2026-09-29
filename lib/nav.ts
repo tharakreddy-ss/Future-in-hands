@@ -20,7 +20,7 @@ export type NavKey =
   | "help"
   | "practice";
 
-export type NavItem = { href: string; label: string; icon: NavKey };
+export type NavItem = { href: string; label: string; icon: NavKey; activePrefixes?: string[] };
 
 export function navForRole(role: Role): NavItem[] {
   if (role === "SUPER_ADMIN") {
@@ -42,8 +42,12 @@ export function navForRole(role: Role): NavItem[] {
       { href: "/admin/subjects", label: "Subjects", icon: "subjects" },
       { href: "/admin/exams", label: "Exams", icon: "exams" },
       { href: "/admin/questions", label: "Question Bank", icon: "questions" },
-      { href: "/admin/students", label: "Students", icon: "students" },
-      { href: "/admin/teachers", label: "Teachers", icon: "teachers" },
+      {
+        href: "/admin/users",
+        label: "Users",
+        icon: "users",
+        activePrefixes: ["/admin/students", "/admin/staff", "/admin/teachers"],
+      },
       { href: "/admin/generate", label: "AI Generate", icon: "generate" },
       { href: "/admin/analytics", label: "Analytics", icon: "analytics" },
       { href: "/admin/reports", label: "Reports", icon: "reports" },

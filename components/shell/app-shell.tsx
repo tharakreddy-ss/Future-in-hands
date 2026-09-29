@@ -109,7 +109,9 @@ export function AppShell({
     <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2">
       <p className="px-3 pb-2 pt-1 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-600">Workspace</p>
       {items.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const active = [item.href, ...(item.activePrefixes ?? [])].some(
+          (href) => pathname === href || pathname.startsWith(`${href}/`),
+        );
         const Icon = ICONS[item.icon] ?? LayoutDashboard;
         return (
           <Link
