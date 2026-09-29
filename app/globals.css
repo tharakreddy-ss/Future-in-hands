@@ -56,6 +56,27 @@ body {
   background-image: none;
 }
 
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body,
+  .page-canvas {
+    background: #fff !important;
+    color: #0f172a;
+  }
+
+  .page-canvas::before {
+    display: none;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
 .marketing {
   color: #e8ecf8;
   background:

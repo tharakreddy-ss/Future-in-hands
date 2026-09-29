@@ -132,8 +132,8 @@ export function AppShell({
   );
 
   return (
-    <div className="flex min-h-screen bg-[#080D1C] text-slate-100">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-white/[0.08] bg-[linear-gradient(180deg,#10182b_0%,#090e1d_74%)] lg:flex">
+    <div className="flex min-h-screen bg-[#080D1C] text-slate-100 print:block print:min-h-0 print:bg-white print:text-black">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-white/[0.08] bg-[linear-gradient(180deg,#10182b_0%,#090e1d_74%)] lg:flex print:!hidden">
         <div className="px-4 py-6">
           <BrandLockup />
         </div>
@@ -166,7 +166,7 @@ export function AppShell({
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/[0.08] bg-[#090e1d]/75 px-4 py-3 backdrop-blur-2xl md:px-6">
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-white/[0.08] bg-[#090e1d]/75 px-4 py-3 backdrop-blur-2xl md:px-6 print:hidden">
           <button
             type="button"
             className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 lg:hidden"
@@ -186,7 +186,7 @@ export function AppShell({
           ) : null}
           {role === "STUDENT" ? <NotificationBell /> : <Bell className="h-5 w-5 text-slate-400" />}
         </header>
-        <main className="page-canvas flex-1 p-4 md:p-7 xl:p-8">{children}</main>
+        <main className="page-canvas flex-1 p-4 md:p-7 xl:p-8 print:p-0">{children}</main>
       </div>
     </div>
   );
