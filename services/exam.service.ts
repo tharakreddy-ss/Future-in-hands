@@ -69,8 +69,14 @@ export const examService = {
     }
   },
 
-  async monitor(testId: string) {
-    await this.syncWindows();
+  /** `institutionId` scopes the lookup; null is only for SUPER_ADMIN. Only the exam's own institution is synced. */
+  async monitor(testId: string, institutionId: string | null) {
+    const owner = await db.test.findFirst({
+      where: { id: testId, ...(institutionId ? { institutionId } : {}) },
+      select: { institutionId: true },
+    });
+    if (!owner) return null;
+    await this.syncWindows(owner.institutionId);
     const test = await this.get(testId);
     if (!test) return null;
     const started = test.attempts.filter((row) => row.status !== "NOT_STARTED").length;

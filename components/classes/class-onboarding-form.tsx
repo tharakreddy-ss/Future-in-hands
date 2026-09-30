@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
+export const YEARS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
-type SubjectOption = { id: string; name: string; code: string | null };
+export type SubjectOption = { id: string; name: string; code: string | null };
 
 export function ClassOnboardingForm({ defaultYear }: { defaultYear?: string }) {
   const router = useRouter();
@@ -149,7 +149,7 @@ export function ClassOnboardingForm({ defaultYear }: { defaultYear?: string }) {
   );
 }
 
-function SubjectPicker({
+export function SubjectPicker({
   subjects,
   state,
   selected,
@@ -253,7 +253,7 @@ function SubjectPicker({
   );
 }
 
-function Field({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) {
+export function Field({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) {
   return (
     <label className="space-y-1.5 text-sm text-slate-300">
       <span>

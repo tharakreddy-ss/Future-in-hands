@@ -1,6 +1,7 @@
 import { withAuth } from "@/lib/with-auth";
 import { classService } from "@/services/class.service";
 import { requireTenant } from "@/lib/tenant";
+import { classUpdateSchema } from "@/lib/validators";
 import { errorJson, json } from "@/lib/utils";
 
 export async function GET(_: Request, context: { params: Promise<{ classId: string }> }) {
@@ -16,10 +17,7 @@ export async function GET(_: Request, context: { params: Promise<{ classId: stri
 export async function PATCH(request: Request, context: { params: Promise<{ classId: string }> }) {
   const { classId } = await context.params;
   return withAuth(async (user) => {
-    const { requireClassAccess } = await import("@/lib/resource-access");
-    const { classSchema } = await import("@/lib/validators");
-    const { db } = await import("@/lib/db");
-    await requireClassAccess(user, classId);
-    return json(await db.class.update({ where: { id: classId }, data: classSchema.parse(await request.json()) }));
+    const input = classUpdateSchema.parse(await request.json());
+    return json(await classService.update(classId, requireTenant(user)!, input));
   }, ["INSTITUTION_ADMIN"]);
 }

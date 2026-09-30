@@ -31,16 +31,6 @@ export const adminSchema = z.object({
   institutionId: z.string().min(1),
 });
 
-export const classSchema = z.object({
-  name: z.string().min(2),
-  subject: z.string().min(2),
-  description: z.string().optional(),
-  academicYear: z.enum(["1st Year", "2nd Year", "3rd Year", "4th Year"]),
-  groupName: z.string().min(1).max(80),
-  section: z.string().max(40).optional(),
-  program: z.string().max(100).optional(),
-});
-
 export const classCreateSchema = z.object({
   name: z.string().min(2),
   description: z.string().max(1000).optional(),
@@ -59,7 +49,7 @@ export const studentSchema = z.object({
   name: z.string().min(2).optional(),
   email: z.string().email(),
   phone: z.string().optional(),
-  password: z.string().min(6).optional(),
+  password: z.string({ error: "An initial password is required." }).min(6, "Initial password must be at least 6 characters."),
   classId: z.string().optional(),
   dateOfBirth: z.string().optional(),
   gender: z.string().max(32).optional(),
@@ -218,6 +208,24 @@ export const staffUpdateSchema = z
   });
 
 export const staffStatusSchema = z.object({ status: staffStatus });
+
+/** Class settings: every field optional; subjectIds, when sent, replaces the class's linked subjects. */
+export const classUpdateSchema = z
+  .object({
+    name: z.string().trim().min(2, "Class name must be at least 2 characters.").max(120),
+    description: z.preprocess(blankToNull, z.string().trim().max(1000).nullish()),
+    academicYear: z.enum(["1st Year", "2nd Year", "3rd Year", "4th Year"]),
+    groupName: z.string().trim().min(1, "Group is required.").max(80),
+    section: z.preprocess(blankToNull, z.string().trim().max(40).nullish()),
+    subjectIds: z
+      .array(z.string().min(1))
+      .min(1, "Please select at least one subject.")
+      .transform((ids) => [...new Set(ids)]),
+  })
+  .partial()
+  .refine((value) => Object.values(value).some((field) => field !== undefined), {
+    message: "Provide at least one field to update.",
+  });
 
 export const staffListQuerySchema = z.object({
   q: z.string().trim().max(100, "Search must be at most 100 characters.").optional(),

@@ -17,7 +17,7 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
-function toJwtClaims(user: SessionUser) {
+function toJwtClaims(user: SessionUser, sessionVersion: number) {
   return {
     id: user.id,
     email: user.email,
@@ -26,7 +26,13 @@ function toJwtClaims(user: SessionUser) {
     institutionId: user.institutionId ?? "",
     studentId: user.studentId ?? "",
     studentIdentifier: user.studentIdentifier ?? "",
+    sv: sessionVersion,
   };
+}
+
+/** Tokens issued before session versioning carry no `sv`; they match the column default of 0. */
+function sessionVersionClaim(payload: Record<string, unknown>) {
+  return typeof payload.sv === "number" ? payload.sv : 0;
 }
 
 function fromJwtClaims(payload: Record<string, unknown>): SessionUser {
@@ -46,7 +52,8 @@ function fromJwtClaims(payload: Record<string, unknown>): SessionUser {
 }
 
 export async function createSession(user: SessionUser) {
-  const token = await new SignJWT(toJwtClaims(user))
+  const { sessionVersion } = await db.user.findUniqueOrThrow({ where: { id: user.id }, select: { sessionVersion: true } });
+  const token = await new SignJWT(toJwtClaims(user, sessionVersion))
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
@@ -75,7 +82,7 @@ export const getSession = cache(async (): Promise<SessionUser | null> => {
     const { payload } = await jwtVerify(token, getAuthSecret());
     const claims = fromJwtClaims(payload as Record<string, unknown>);
     const user = await db.user.findUnique({ where: { id: claims.id }, include: { institution: true, student: true } });
-    if (!user?.isActive || (user.role !== "SUPER_ADMIN" && user.institution?.status !== "ACTIVE") || (user.role === "STUDENT" && user.student?.status !== "ACTIVE")) return null;
+    if (!user?.isActive || user.sessionVersion !== sessionVersionClaim(payload) || (user.role !== "SUPER_ADMIN" && user.institution?.status !== "ACTIVE") || (user.role === "STUDENT" && user.student?.status !== "ACTIVE")) return null;
     return { id: user.id, email: user.email, name: user.name, role: user.role, institutionId: user.institutionId, studentId: user.student?.id ?? null, studentIdentifier: user.student?.studentIdentifier ?? null };
   } catch {
     return null;

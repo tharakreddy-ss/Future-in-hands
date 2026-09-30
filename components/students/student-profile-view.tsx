@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Download, Pencil } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, KeyRound, Pencil, Power } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,19 +48,82 @@ export function StudentProfileView({
     phone: profile.phone ?? "",
   });
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [status, setStatus] = useState(profile.status);
+  const [confirming, setConfirming] = useState<"status" | "password" | null>(null);
+  const [actionPending, setActionPending] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [temporaryPassword, setTemporaryPassword] = useState("");
+  const isAdmin = basePath === "/admin";
+  const active = status === "ACTIVE";
 
   const examHref = profile.classId ? `${basePath}/exams/new?classId=${profile.classId}&studentId=${profile.id}` : null;
 
   async function save() {
     setSaving(true);
-    await fetch(`/api/students/${profile.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    setSaving(false);
-    setEditing(false);
-    router.refresh();
+    setSaveError("");
+    setNotice("");
+    try {
+      const res = await fetch(`/api/students/${profile.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, phone: form.phone.trim() || null }),
+      });
+      if (!res.ok) throw new Error(await readError(res, "Could not save the student's details."));
+      setEditing(false);
+      setNotice("Student details saved.");
+      router.refresh();
+    } catch (reason) {
+      setSaveError(reason instanceof Error ? reason.message : "Could not save the student's details.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openConfirm(kind: "status" | "password") {
+    setActionError("");
+    setNotice("");
+    setTemporaryPassword("");
+    setConfirming(kind);
+  }
+
+  async function changeStatus() {
+    setActionPending(true);
+    setActionError("");
+    try {
+      const next = active ? "INACTIVE" : "ACTIVE";
+      const res = await fetch(`/api/students/${profile.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) throw new Error(await readError(res, "Could not change the student's status."));
+      setStatus(next);
+      setConfirming(null);
+      setNotice(next === "INACTIVE" ? `${profile.name} is now inactive and can no longer sign in.` : `${profile.name} is now active.`);
+      router.refresh();
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Could not change the student's status.");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  async function resetPassword() {
+    setActionPending(true);
+    setActionError("");
+    try {
+      const res = await fetch(`/api/students/${profile.id}/reset-password`, { method: "POST" });
+      if (!res.ok) throw new Error(await readError(res, "Could not reset the password."));
+      const data = (await res.json()) as { temporaryPassword: string };
+      setTemporaryPassword(data.temporaryPassword);
+      setConfirming(null);
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Could not reset the password.");
+    } finally {
+      setActionPending(false);
+    }
   }
 
   return (
@@ -89,9 +152,7 @@ export function StudentProfileView({
               </p>
               <p className="mt-1 text-sm text-slate-500">Roll No: {profile.rollNumber || "—"}</p>
               <div className="mt-2">
-                <Badge tone={profile.status === "ACTIVE" ? "green" : "amber"}>
-                  {profile.status === "ACTIVE" ? "Active" : "Inactive"}
-                </Badge>
+                <Badge tone={active ? "green" : "amber"}>{active ? "Active" : "Inactive"}</Badge>
               </div>
             </div>
           </div>
@@ -107,16 +168,104 @@ export function StudentProfileView({
           ) : (
             <p className="text-sm text-slate-400">Enroll this student in a classroom before creating an exam.</p>
           )}
-          <Button variant="secondary" onClick={() => { setTab("Personal Information"); setEditing(true); }}>
+          <Button variant="secondary" onClick={() => { setTab("Personal Information"); setSaveError(""); setEditing(true); }}>
             <Pencil className="h-4 w-4" />
             Edit Student
           </Button>
+          {isAdmin ? (
+            <>
+              <Button variant={active ? "outline" : "secondary"} onClick={() => openConfirm("status")} disabled={actionPending || confirming !== null}>
+                <Power className="h-4 w-4" />
+                {active ? "Deactivate" : "Activate"}
+              </Button>
+              <Button variant="outline" onClick={() => openConfirm("password")} disabled={actionPending || confirming !== null}>
+                <KeyRound className="h-4 w-4" />
+                Reset Password
+              </Button>
+            </>
+          ) : null}
           <Button variant="outline" onClick={() => window.print()}>
             <Download className="h-4 w-4" />
             Download Student Report
           </Button>
         </div>
       </div>
+
+      {notice ? (
+        <p role="status" className="flex items-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-500/10 p-3 text-sm text-emerald-200 print:hidden">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          {notice}
+        </p>
+      ) : null}
+
+      {confirming ? (
+        <div role="alertdialog" aria-labelledby="student-confirm-title" className="rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4 print:hidden">
+          <p id="student-confirm-title" className="font-medium text-white">
+            {confirming === "password"
+              ? `Reset the password for ${profile.name}?`
+              : active
+                ? `Deactivate ${profile.name}?`
+                : `Activate ${profile.name}?`}
+          </p>
+          <p className="mt-1 text-sm text-amber-100/90">
+            {confirming === "password"
+              ? "A new temporary password will be generated and shown once. The current password stops working and the student is signed out of every device."
+              : active
+                ? "The student will be signed out and will not be able to sign in until reactivated. Their record, results and history are kept."
+                : "The student will be able to sign in again with their existing password."}
+          </p>
+          {actionError ? (
+            <p role="alert" className="mt-3 rounded-xl border border-rose-400/20 bg-rose-500/10 p-2.5 text-sm text-rose-200">
+              {actionError}
+            </p>
+          ) : null}
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              variant={confirming === "status" && active ? "danger" : "primary"}
+              disabled={actionPending}
+              onClick={() => void (confirming === "password" ? resetPassword() : changeStatus())}
+            >
+              {actionPending
+                ? "Working…"
+                : confirming === "password"
+                  ? "Yes, reset password"
+                  : active
+                    ? "Yes, deactivate"
+                    : "Yes, activate"}
+            </Button>
+            <Button variant="ghost" disabled={actionPending} onClick={() => setConfirming(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {temporaryPassword ? (
+        <div role="status" className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 p-4 print:hidden">
+          <p className="font-medium text-white">Password reset for {profile.name}</p>
+          <p className="mt-1 text-sm text-emerald-100/90">
+            Share these sign-in details with the student securely. The temporary password is shown only now and cannot be viewed again.
+          </p>
+          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-slate-400">Student ID</dt>
+              <dd className="mt-1 font-mono text-white">{profile.studentIdentifier}</dd>
+            </div>
+            <div>
+              <dt className="text-xs uppercase tracking-wide text-slate-400">Temporary password</dt>
+              <dd className="mt-1 select-all font-mono text-white">{temporaryPassword}</dd>
+            </div>
+          </dl>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => void navigator.clipboard?.writeText(temporaryPassword)}>
+              Copy password
+            </Button>
+            <Button variant="ghost" onClick={() => setTemporaryPassword("")}>
+              Done
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <nav className="flex flex-wrap gap-2 print:hidden">
         {TABS.map((item) => (
@@ -193,11 +342,16 @@ export function StudentProfileView({
                   <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                 </div>
               </div>
+              {saveError ? (
+                <p role="alert" className="rounded-xl border border-rose-400/20 bg-rose-500/10 p-3 text-sm text-rose-200">
+                  {saveError}
+                </p>
+              ) : null}
               <div className="flex gap-2">
                 <Button onClick={() => void save()} disabled={saving}>
                   {saving ? "Saving…" : "Save"}
                 </Button>
-                <Button variant="secondary" onClick={() => setEditing(false)}>
+                <Button variant="secondary" onClick={() => { setSaveError(""); setEditing(false); }} disabled={saving}>
                   Cancel
                 </Button>
               </div>
@@ -220,13 +374,22 @@ export function StudentProfileView({
               {profile.address ? <Info label="Address" value={profile.address} /> : null}
               <Info label="Institution" value={profile.institution} />
               <Info label="Join Date" value={formatDate(profile.joinDate)} />
-              <Info label="Status" value={profile.status === "ACTIVE" ? "Active" : "Inactive"} />
+              <Info label="Status" value={active ? "Active" : "Inactive"} />
             </dl>
           )}
         </Card>
       ) : null}
     </div>
   );
+}
+
+async function readError(response: Response, fallback: string) {
+  try {
+    const data = (await response.json()) as { error?: string };
+    return data.error || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function Info({ label, value }: { label: string; value: string }) {

@@ -49,6 +49,46 @@ export const classService = {
       },
     });
   },
+  async update(
+    id: string,
+    institutionId: string,
+    input: {
+      name?: string;
+      description?: string | null;
+      academicYear?: string;
+      groupName?: string;
+      section?: string | null;
+      subjectIds?: string[];
+    },
+  ) {
+    const existing = await db.class.findFirst({ where: { id, institutionId }, select: { id: true } });
+    if (!existing) throw httpError("Class not found", 404);
+    const { subjectIds, ...fields } = input;
+    return db.$transaction(async (tx) => {
+      let subject: string | undefined;
+      if (subjectIds) {
+        const subjects = await tx.subject.findMany({
+          where: { institutionId, id: { in: subjectIds } },
+          select: { name: true },
+          orderBy: { name: "asc" },
+        });
+        if (subjects.length !== subjectIds.length) {
+          throw httpError("One or more selected subjects are not available.", 400);
+        }
+        await tx.classSubject.deleteMany({ where: { classId: id, subjectId: { notIn: subjectIds } } });
+        await tx.classSubject.createMany({
+          data: subjectIds.map((subjectId) => ({ classId: id, subjectId })),
+          skipDuplicates: true,
+        });
+        subject = subjects.map((row) => row.name).join(", ");
+      }
+      return tx.class.update({
+        where: { id },
+        data: { ...fields, ...(subject !== undefined ? { subject } : {}) },
+        include: { subjects: { include: { subject: { select: { id: true, name: true } } } } },
+      });
+    });
+  },
   async performance(classId: string) {
     const attempts = await db.studentTestAttempt.findMany({
       where: { test: { classId }, status: "SUBMITTED" },

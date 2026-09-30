@@ -2,7 +2,7 @@ import { requireSession } from "@/lib/auth";
 import { requireClassAccess } from "@/lib/resource-access";
 import { classService } from "@/services/class.service";
 import { notFound } from "next/navigation";
-import { ResourceForm } from "@/components/management/resource-form";
+import { ClassSettingsForm } from "@/components/classes/class-settings-form";
 
 export default async function ClassSettingsPage({
   params,
@@ -14,5 +14,18 @@ export default async function ClassSettingsPage({
   const cls = await classService.get(classId);
   if (!cls) notFound();
 
-  return <ResourceForm title="Classroom settings" endpoint={`/api/classes/${classId}`} method="PATCH" fields={[{ name: "name", label: "Class name", value: cls.name }, { name: "subject", label: "Subject", value: cls.subject }, { name: "description", label: "Description", value: cls.description || "", optional: true }]} />;
+  return (
+    <ClassSettingsForm
+      initial={{
+        id: cls.id,
+        name: cls.name,
+        description: cls.description,
+        academicYear: cls.academicYear,
+        groupName: cls.groupName,
+        section: cls.section,
+        subject: cls.subject,
+        subjectIds: cls.subjects.map((row) => row.subject.id),
+      }}
+    />
+  );
 }

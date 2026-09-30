@@ -1,4 +1,6 @@
-import { createSession, getStudentByIdentifier, getUserByEmail, verifyPassword } from "@/lib/auth";
+import { randomBytes } from "crypto";
+import { createSession, getStudentByIdentifier, getUserByEmail, hashPassword, verifyPassword } from "@/lib/auth";
+import { clearAccountFailures, loginRetryAfter, loginThrottleKeys, recordLoginFailure, type ThrottleKey } from "@/lib/login-throttle";
 import { httpError } from "@/lib/utils";
 import type { SessionUser } from "@/types";
 
@@ -21,29 +23,58 @@ function toSession(user: {
   };
 }
 
+let dummyHash: Promise<string> | undefined;
+
+/** Compares against a throwaway hash when the account is unknown so response time does not reveal it. */
+async function passwordMatches(password: string, hash: string | undefined) {
+  if (hash) return verifyPassword(password, hash);
+  dummyHash ??= hashPassword(randomBytes(16).toString("hex"));
+  await verifyPassword(password, await dummyHash);
+  return false;
+}
+
+async function guard(keys: ThrottleKey[]) {
+  const retryAfter = await loginRetryAfter(keys);
+  if (retryAfter > 0) {
+    const minutes = Math.ceil(retryAfter / 60);
+    throw Object.assign(
+      httpError(`Too many sign-in attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`, 429),
+      { retryAfter },
+    );
+  }
+}
+
+async function reject(keys: ThrottleKey[], message: string): Promise<never> {
+  await recordLoginFailure(keys);
+  throw httpError(message, 401);
+}
+
 export const authService = {
-  async loginStaff(email: string, password: string): Promise<SessionUser> {
+  async loginStaff(email: string, password: string, ip: string | null = null): Promise<SessionUser> {
+    const keys = loginThrottleKeys(`staff:${email}`, ip);
+    await guard(keys);
     const user = await getUserByEmail(email);
-    if (!user || user.role === "STUDENT") {
-      throw httpError("Invalid email or password", 401);
+    const account = user && user.role !== "STUDENT" ? user : null;
+    if (!(await passwordMatches(password, account?.passwordHash)) || !account) {
+      return reject(keys, "Invalid email or password");
     }
-    if (!user.isActive) throw httpError("This account is deactivated", 403);
-    if (!(await verifyPassword(password, user.passwordHash))) {
-      throw httpError("Invalid email or password", 401);
-    }
-    const session = toSession(user);
+    await clearAccountFailures(keys);
+    if (!account.isActive) throw httpError("This account is deactivated", 403);
+    const session = toSession(account);
     await createSession(session);
     return session;
   },
 
-  async loginStudent(studentIdentifier: string, password: string): Promise<SessionUser> {
+  async loginStudent(studentIdentifier: string, password: string, ip: string | null = null): Promise<SessionUser> {
+    const keys = loginThrottleKeys(`student:${studentIdentifier}`, ip);
+    await guard(keys);
     const student = await getStudentByIdentifier(studentIdentifier);
-    if (!student) throw httpError("Invalid student ID or password", 401);
+    if (!(await passwordMatches(password, student?.user.passwordHash)) || !student) {
+      return reject(keys, "Invalid student ID or password");
+    }
+    await clearAccountFailures(keys);
     if (student.status !== "ACTIVE" || !student.user.isActive) {
       throw httpError("This student account is deactivated", 403);
-    }
-    if (!(await verifyPassword(password, student.user.passwordHash))) {
-      throw httpError("Invalid student ID or password", 401);
     }
     const session = toSession({ ...student.user, student });
     await createSession(session);

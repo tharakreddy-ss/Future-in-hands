@@ -1,4 +1,5 @@
 import { requireSession } from "@/lib/auth";
+import { requireTenant } from "@/lib/tenant";
 import { examService } from "@/services/exam.service";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { Card } from "@/components/ui/card";
@@ -12,8 +13,8 @@ export default async function ExamMonitorPage({
 }) {
   const user = await requireSession(["INSTITUTION_ADMIN"]);
   const { examId } = await params;
-  const data = await examService.monitor(examId);
-  if (!data || data.test.institutionId !== user.institutionId) notFound();
+  const data = await examService.monitor(examId, requireTenant(user));
+  if (!data) notFound();
 
   return (
     <div className="space-y-6">

@@ -1,17 +1,46 @@
+import { randomInt } from "crypto";
 import { studentRepository } from "@/repositories/student.repository";
 import { hashPassword, verifyPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { clearAccountFailures, loginThrottleKeys } from "@/lib/login-throttle";
 import { fullName, httpError, splitName } from "@/lib/utils";
 import { removePrivateObject } from "@/lib/private-storage";
 import { testService } from "@/services/test.service";
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const formatIdentifier = (prefix: string, n: number) => `${prefix}${String(n).padStart(3, "0")}`;
+
+/**
+ * Next `${prefix}NNN` after the institution's highest issued number. Legacy IDs such as
+ * STU006-AB12CD34 count as 6; their random suffix is never read as part of the number.
+ * studentIdentifier is unique across all institutions, so numbers taken elsewhere are skipped.
+ */
 async function nextStudentIdentifier(institutionId: string, prefix: string) {
-  const last = await db.student.findFirst({
-    where: { institutionId, studentIdentifier: { startsWith: prefix } },
-    orderBy: { studentIdentifier: "desc" },
+  const pattern = new RegExp(`^${escapeRegExp(prefix)}(\\d+)(?:-[A-Z0-9]+)?$`);
+  const rows = await db.student.findMany({
+    where: { studentIdentifier: { startsWith: prefix } },
+    select: { institutionId: true, studentIdentifier: true },
   });
-  const n = last ? Number(last.studentIdentifier.replace(/\D/g, "")) + 1 : 1;
-  return `${prefix}${String(Number.isFinite(n) ? n : 1).padStart(3, "0")}`;
+  let n = 1;
+  for (const row of rows) {
+    const match = row.institutionId === institutionId ? pattern.exec(row.studentIdentifier) : null;
+    if (match) n = Math.max(n, Number(match[1]) + 1);
+  }
+  const taken = new Set(rows.map((row) => row.studentIdentifier));
+  while (taken.has(formatIdentifier(prefix, n))) n += 1;
+  return formatIdentifier(prefix, n);
+}
+
+function isStudentIdentifierConflict(error: unknown) {
+  if (!error || typeof error !== "object" || (error as { code?: string }).code !== "P2002") return false;
+  const target = JSON.stringify((error as { meta?: { target?: unknown } }).meta?.target ?? "");
+  return target.includes("student_identifier") || target.includes("studentIdentifier");
+}
+
+const TEMP_PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+
+function temporaryPassword(length = 12) {
+  return Array.from({ length }, () => TEMP_PASSWORD_ALPHABET[randomInt(TEMP_PASSWORD_ALPHABET.length)]).join("");
 }
 
 export function presentStudent(student: {
@@ -90,20 +119,32 @@ export const studentService = {
       status?: "ACTIVE" | "INACTIVE";
     },
   ) {
-    const student = await studentRepository.update(id, data);
-    if (data.firstName || data.lastName || data.email) {
-      const fresh = await studentRepository.get(id);
-      if (fresh) {
-        await db.user.update({
-          where: { id: fresh.userId },
-          data: {
-            name: fullName(fresh.firstName, fresh.lastName),
-            ...(data.email ? { email: data.email.toLowerCase() } : {}),
-          },
+    const email = data.email?.toLowerCase();
+    await db.$transaction(async (tx) => {
+      const student = await tx.student.update({ where: { id }, data: { ...data, ...(email ? { email } : {}) } });
+      if (data.firstName !== undefined || data.lastName !== undefined || email) {
+        await tx.user.update({
+          where: { id: student.userId },
+          data: { name: fullName(student.firstName, student.lastName), ...(email ? { email } : {}) },
         });
       }
-    }
-    return studentRepository.get(student.id);
+    });
+    return studentRepository.get(id);
+  },
+  /** Replaces the password with a one-time temporary one and signs the student out everywhere. */
+  async resetPassword(studentId: string, institutionId: string) {
+    const student = await db.student.findFirst({
+      where: { id: studentId, institutionId },
+      select: { userId: true, studentIdentifier: true },
+    });
+    if (!student) throw httpError("Student not found", 404);
+    const password = temporaryPassword();
+    await db.user.update({
+      where: { id: student.userId },
+      data: { passwordHash: await hashPassword(password), sessionVersion: { increment: 1 } },
+    });
+    await clearAccountFailures(loginThrottleKeys(`student:${student.studentIdentifier}`, null));
+    return { studentIdentifier: student.studentIdentifier, temporaryPassword: password };
   },
   async create(input: {
     name?: string;
@@ -111,7 +152,7 @@ export const studentService = {
     lastName?: string;
     email: string;
     phone?: string;
-    password?: string;
+    password: string;
     institutionId: string;
     classId?: string;
     photoKey?: string;
@@ -127,23 +168,31 @@ export const studentService = {
     const names = input.firstName
       ? { firstName: input.firstName, lastName: input.lastName ?? "" }
       : splitName(input.name ?? "Student");
+    if (!input.password) throw httpError("An initial password is required.", 400);
     const institution = await db.institution.findUnique({ where: { id: input.institutionId } });
-    const identifier = await nextStudentIdentifier(input.institutionId, institution?.studentIdPrefix ?? "STU");
-    const passwordHash = await hashPassword(input.password || "Student@123");
-    const created = await db.$transaction(async (tx) => {
-      const user = await tx.user.create({ data: { name: fullName(names.firstName, names.lastName), email: input.email.toLowerCase(), passwordHash, role: "STUDENT", institutionId: input.institutionId } });
-      const student = await tx.student.create({ data: {
-        userId: user.id, institutionId: input.institutionId,
-        studentIdentifier: `${identifier}-${user.id.slice(-8).toUpperCase()}`,
-        firstName: names.firstName, lastName: names.lastName, email: input.email.toLowerCase(), phone: input.phone,
-        photoKey: input.photoKey, dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined,
-        gender: input.gender, guardianName: input.guardianName, guardianPhone: input.guardianPhone,
-        address: input.address, academicYear: input.academicYear, rollNumber: input.rollNumber,
-      } });
-      if (input.classId) await tx.classStudent.create({ data: { classId: input.classId, studentId: student.id } });
-      return student;
-    });
-    return studentRepository.get(created.id);
+    const prefix = institution?.studentIdPrefix ?? "STU";
+    const passwordHash = await hashPassword(input.password);
+    for (let attempt = 1; ; attempt++) {
+      const studentIdentifier = await nextStudentIdentifier(input.institutionId, prefix);
+      try {
+        const created = await db.$transaction(async (tx) => {
+          const user = await tx.user.create({ data: { name: fullName(names.firstName, names.lastName), email: input.email.toLowerCase(), passwordHash, role: "STUDENT", institutionId: input.institutionId } });
+          const student = await tx.student.create({ data: {
+            userId: user.id, institutionId: input.institutionId, studentIdentifier,
+            firstName: names.firstName, lastName: names.lastName, email: input.email.toLowerCase(), phone: input.phone,
+            photoKey: input.photoKey, dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined,
+            gender: input.gender, guardianName: input.guardianName, guardianPhone: input.guardianPhone,
+            address: input.address, academicYear: input.academicYear, rollNumber: input.rollNumber,
+          } });
+          if (input.classId) await tx.classStudent.create({ data: { classId: input.classId, studentId: student.id } });
+          return student;
+        });
+        return studentRepository.get(created.id);
+      } catch (error) {
+        // Two concurrent creates can pick the same number; recompute and retry.
+        if (attempt >= 3 || !isStudentIdentifierConflict(error)) throw error;
+      }
+    }
   },
   enroll(classId: string, studentId: string) {
     return studentRepository.enroll(classId, studentId);

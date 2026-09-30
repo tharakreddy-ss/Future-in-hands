@@ -3,6 +3,7 @@ import { withAuth } from "@/lib/with-auth";
 import { studentService } from "@/services/student.service";
 import { errorJson } from "@/lib/utils";
 import { readPrivateObject, savePrivateObject } from "@/lib/private-storage";
+import { validUploadSignature } from "@/lib/upload-validation";
 
 const PHOTO_TYPES: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const PHOTO_LIMIT = 5 * 1024 * 1024;
@@ -39,7 +40,9 @@ export async function POST(request: Request) {
     const extension = PHOTO_TYPES[photo.type];
     if (!extension) return errorJson("Photo must be a JPG, PNG or WebP image.", 400);
     if (photo.size > PHOTO_LIMIT) return errorJson("Photo must be 5 MB or smaller.", 413);
-    const photoKey = await savePrivateObject("student-photos", `${randomUUID()}.${extension}`, photo, photo.type);
+    const bytes = new Uint8Array(await photo.arrayBuffer());
+    if (!validUploadSignature(bytes, photo.type)) return errorJson("Photo file does not match its image type.", 400);
+    const photoKey = await savePrivateObject("student-photos", `${randomUUID()}.${extension}`, bytes, photo.type);
     await studentService.setOwnPhoto(user.studentId, photoKey);
     return Response.json({ ok: true });
   }, ["STUDENT"]);

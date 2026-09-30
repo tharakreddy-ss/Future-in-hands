@@ -155,6 +155,8 @@ model User {
   passwordHash   String   @map("password_hash")
   role           Role
   isActive       Boolean  @default(true) @map("is_active")
+  /// Bumped to revoke every session issued before a password reset.
+  sessionVersion Int      @default(0) @map("session_version")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
@@ -589,4 +591,15 @@ model AiUsage {
 
   @@index([institutionId, createdAt])
   @@map("ai_usage")
+}
+
+/// Failed-login counters. `key` is a SHA-256 of "account:<login>" or "ip:<address>", never the raw value.
+model LoginThrottle {
+  key         String   @id
+  failures    Int      @default(0)
+  windowStart DateTime @map("window_start")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([updatedAt])
+  @@map("login_throttles")
 }

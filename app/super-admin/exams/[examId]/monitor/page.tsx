@@ -11,7 +11,7 @@ export default async function SuperAdminExamMonitorPage({
 }) {
   await requireSession(["SUPER_ADMIN"]);
   const { examId } = await params;
-  const data = await examService.monitor(examId);
+  const data = await examService.monitor(examId, null);
   if (!data) notFound();
 
   return (

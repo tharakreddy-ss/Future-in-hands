@@ -42,7 +42,7 @@ export default async function AdminDashboardPage() {
           <StatCard label="Total Students" value={stats.students} />
         </StaggerItem>
         <StaggerItem>
-          <StatCard label="Total Teachers" value={stats.teachers} />
+          <StatCard label="Teaching Staff" value={stats.teachingStaff} hint="Active teaching staff" />
         </StaggerItem>
         <StaggerItem>
           <StatCard label="Active Exams" value={stats.liveExams} />

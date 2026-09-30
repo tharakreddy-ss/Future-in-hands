@@ -54,10 +54,10 @@ export const analyticsService = {
   },
 
   async institution(institutionId: string) {
-    const [classes, students, teachers, tests, liveExams, attempts, submitted] = await Promise.all([
+    const [classes, students, teachingStaff, tests, liveExams, attempts, submitted] = await Promise.all([
       db.class.count({ where: { institutionId } }),
       db.student.count({ where: { institutionId } }),
-      db.user.count({ where: { institutionId, role: "TEACHER" } }),
+      db.staff.count({ where: { institutionId, category: "TEACHING", status: "ACTIVE" } }),
       db.test.count({ where: { institutionId, status: "PUBLISHED" } }),
       db.test.count({ where: { institutionId, examStatus: "LIVE" } }),
       db.studentTestAttempt.count({
@@ -72,7 +72,7 @@ export const analyticsService = {
     return {
       classes,
       students,
-      teachers,
+      teachingStaff,
       tests,
       liveExams,
       attempts,
