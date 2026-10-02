@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { db } from "@/lib/db";
@@ -66,7 +67,7 @@ export async function clearSession() {
   store.delete(SESSION_COOKIE);
 }
 
-export async function getSession(): Promise<SessionUser | null> {
+export const getSession = cache(async (): Promise<SessionUser | null> => {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -79,7 +80,7 @@ export async function getSession(): Promise<SessionUser | null> {
   } catch {
     return null;
   }
-}
+});
 
 export async function requireSession(roles?: Role[]) {
   const session = await getSession();

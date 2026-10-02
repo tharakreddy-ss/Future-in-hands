@@ -14,6 +14,43 @@ async function nextStudentIdentifier(institutionId: string, prefix: string) {
   return `${prefix}${String(Number.isFinite(n) ? n : 1).padStart(3, "0")}`;
 }
 
+export function presentStudent(student: {
+  id: string;
+  firstName: string;
+  lastName: string;
+  studentIdentifier: string;
+  status: "ACTIVE" | "INACTIVE";
+  photoKey: string | null;
+  rollNumber: string | null;
+  enrollments: Array<{
+    classId: string;
+    class: { name: string; section: string | null; academicYear?: string };
+  }>;
+}) {
+  const classes = student.enrollments.map((row) => ({
+    id: row.classId,
+    name: row.class.name,
+    section: row.class.section ?? "",
+    academicYear: row.class.academicYear ?? "",
+  }));
+  const primary = classes[0];
+  return {
+    id: student.id,
+    firstName: student.firstName,
+    lastName: student.lastName,
+    name: fullName(student.firstName, student.lastName),
+    studentIdentifier: student.studentIdentifier,
+    status: student.status,
+    rollNumber: student.rollNumber,
+    photoUrl: student.photoKey ? `/api/students/${student.id}/photo` : null,
+    classId: primary?.id ?? null,
+    className: primary?.name ?? "Unassigned",
+    section: primary?.section || "—",
+    academicYear: primary?.academicYear || null,
+    classes,
+  };
+}
+
 function mean(values: number[]) {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
@@ -33,6 +70,9 @@ export function examImprovement(scores: number[]) {
 export const studentService = {
   list(institutionId: string) {
     return studentRepository.list(institutionId);
+  },
+  directory(institutionId: string) {
+    return studentRepository.directory(institutionId);
   },
   search(institutionId: string, q: string) {
     return studentRepository.search(institutionId, q);
@@ -353,7 +393,15 @@ export const studentService = {
       joinDate: student.createdAt.toISOString(),
       institution: student.institution.name,
       className: enrollment?.class.name ?? "Unassigned",
-      section: enrollment?.class.subject ?? "—",
+      section: enrollment?.class.section || "—",
+      academicYear: enrollment?.class.academicYear ?? student.academicYear,
+      rollNumber: student.rollNumber,
+      dateOfBirth: student.dateOfBirth?.toISOString() ?? null,
+      gender: student.gender,
+      guardianName: student.guardianName,
+      guardianPhone: student.guardianPhone,
+      address: student.address,
+      classSubjects: enrollment?.class.subjects.map((item) => item.subject.name) ?? [],
       classId: classId ?? null,
       metrics: {
         attempted: attempts.length,

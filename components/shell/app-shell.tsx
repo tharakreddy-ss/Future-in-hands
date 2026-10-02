@@ -176,12 +176,14 @@ export function AppShell({
             <Menu className="h-5 w-5" />
           </button>
           <GlobalSearch />
-          <Link
-            href={create.href}
-            className="hidden rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#4F6BFF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(124,58,237,0.28)] sm:inline-flex"
-          >
-            + {create.label}
-          </Link>
+          {create ? (
+            <Link
+              href={create.href}
+              className="hidden rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#4F6BFF] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(124,58,237,0.28)] sm:inline-flex"
+            >
+              + {create.label}
+            </Link>
+          ) : null}
           {role === "STUDENT" ? <NotificationBell /> : <Bell className="h-5 w-5 text-slate-400" />}
         </header>
         <main className="page-canvas flex-1 p-4 md:p-7 xl:p-8">{children}</main>

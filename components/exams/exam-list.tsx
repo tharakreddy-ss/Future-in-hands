@@ -45,9 +45,7 @@ export function ExamList({
         {rows.length === 0 ? (
           <EmptyState
             title="No exams created yet."
-            description="Generate a test from a classroom to schedule a live exam window."
-            actionHref={`${basePath}/generate`}
-            actionLabel="Create Your First Exam"
+            description="Open a classroom or a student report to create an exam."
           />
         ) : (
           rows.map((exam) => {

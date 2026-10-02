@@ -1,5 +1,5 @@
 import { withAuth } from "@/lib/with-auth";
-import { studentService } from "@/services/student.service";
+import { presentStudent, studentService } from "@/services/student.service";
 import { requireTenant } from "@/lib/tenant";
 import { studentSchema } from "@/lib/validators";
 import { json } from "@/lib/utils";
@@ -14,23 +14,8 @@ export function GET(request: Request) {
     const institutionId = requireTenant(user);
     if (!institutionId) return json([]);
     const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
-    if (!q) return json([]);
-    const rows = await studentService.search(institutionId, q);
-    return json(
-      rows.map((student) => {
-        const enrollment = student.enrollments[0];
-        return {
-          id: student.id,
-          firstName: student.firstName,
-          lastName: student.lastName,
-          name: `${student.firstName} ${student.lastName}`.trim(),
-          studentIdentifier: student.studentIdentifier,
-          status: student.status,
-          className: enrollment?.class.name ?? "Unassigned",
-          section: enrollment?.class.subject ?? "—",
-        };
-      }),
-    );
+    const rows = q ? await studentService.search(institutionId, q) : await studentService.directory(institutionId);
+    return json(rows.map(presentStudent));
   }, ["INSTITUTION_ADMIN", "TEACHER"]);
 }
 

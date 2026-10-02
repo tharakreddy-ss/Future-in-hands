@@ -1,75 +1,64 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Search, UserPlus } from "lucide-react";
+import { Search, UserPlus } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { StudentAvatar } from "@/components/students/student-avatar";
 import { StudentForm } from "@/components/students/student-form";
+import { StudentImageReveal } from "@/components/students/student-image-reveal";
 import type { StudentHit } from "@/components/students/types";
-import { cn } from "@/lib/utils";
 
 export function StudentsSearch({ basePath }: { basePath: "/admin" | "/teacher" }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<StudentHit[]>([]);
-  const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
-  const [searched, setSearched] = useState(false);
+  const [classId, setClassId] = useState("all");
+  const [students, setStudents] = useState<StudentHit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      return;
+  const load = useCallback(async () => {
+    try {
+      const response = await fetch("/api/students");
+      const data = await response.json();
+      if (!response.ok || !Array.isArray(data)) throw new Error("Could not load students.");
+      setStudents(data);
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
     }
-    const timer = setTimeout(async () => {
-      const res = await fetch(`/api/students?q=${encodeURIComponent(query.trim())}`);
-      const data = (await res.json()) as StudentHit[];
-      setHits(Array.isArray(data) ? data : []);
-      setSearched(true);
-      setOpen(Array.isArray(data) && data.length > 0);
-      setActive(0);
-    }, 160);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  useEffect(() => {
-    function onDoc(event: MouseEvent) {
-      if (!boxRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
   }, []);
 
-  const emptyQuery = !query.trim();
-  const noHits = searched && query.trim() && hits.length === 0;
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
-  const list = useMemo(() => hits, [hits]);
-
-  function go(student: StudentHit) {
-    router.push(`${basePath}/students/${student.id}`);
-  }
-
-  function onKey(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (!open && (event.key === "ArrowDown" || event.key === "Enter") && list.length) {
-      setOpen(true);
-      return;
+  const classOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const student of students) {
+      for (const classroom of student.classes ?? []) {
+        const section = classroom.section ? `-${classroom.section}` : "";
+        map.set(classroom.id, `${classroom.name}${section}`);
+      }
     }
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setActive((i) => Math.min(i + 1, Math.max(list.length - 1, 0)));
-    } else if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setActive((i) => Math.max(i - 1, 0));
-    } else if (event.key === "Enter" && list[active]) {
-      event.preventDefault();
-      go(list[active]);
-    } else if (event.key === "Escape") {
-      setOpen(false);
-    }
-  }
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [students]);
+
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return students.filter((student) => {
+      const inClass = classId === "all" || (student.classes ?? []).some((classroom) => classroom.id === classId);
+      if (!inClass) return false;
+      if (!needle) return true;
+      return [student.name, student.studentIdentifier, student.rollNumber].filter(Boolean).some((value) => value!.toLowerCase().includes(needle));
+    });
+  }, [classId, query, students]);
 
   return (
     <div>
@@ -77,13 +66,11 @@ export function StudentsSearch({ basePath }: { basePath: "/admin" | "/teacher" }
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-300/80">Directory</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">Students</h1>
-          <p className="mt-2 max-w-xl text-sm text-slate-400">
-            Search and manage student academic information and performance.
-          </p>
+          <p className="mt-2 max-w-xl text-sm text-slate-400">Browse students by classroom. Each card opens that student report.</p>
         </div>
         <button
           type="button"
-          onClick={() => setAddOpen((v) => !v)}
+          onClick={() => setAddOpen((value) => !value)}
           className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-slate-100"
         >
           <UserPlus className="h-4 w-4" />
@@ -93,88 +80,92 @@ export function StudentsSearch({ basePath }: { basePath: "/admin" | "/teacher" }
 
       {addOpen ? (
         <div className="mt-6 rounded-2xl border border-white/8 bg-[#11182A] p-5">
-          <StudentForm />
+          <StudentForm
+            onCreated={() => {
+              setAddOpen(false);
+              void load();
+              router.refresh();
+            }}
+          />
         </div>
       ) : null}
 
-      <div ref={boxRef} className="relative mx-auto mt-10 max-w-3xl">
-        <Search className="pointer-events-none absolute left-4 top-4 h-5 w-5 text-slate-500" />
-        <Input
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); if (!e.target.value.trim()) { setHits([]); setSearched(false); setOpen(false); } }}
-          onFocus={() => list.length && setOpen(true)}
-          onKeyDown={onKey}
-          placeholder="Search by Student Name or Student ID..."
-          className="h-14 rounded-2xl border-white/10 bg-[#11182A] pl-12 text-base shadow-[0_0_40px_rgba(124,58,237,0.12)]"
-          role="combobox"
-          aria-expanded={open}
-          aria-autocomplete="list"
-          aria-controls="student-suggestions"
-        />
-        {open && list.length > 0 ? (
-          <ul
-            id="student-suggestions"
-            role="listbox"
-            className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#11182A] shadow-[0_24px_80px_-32px_rgba(0,0,0,0.8)]"
-          >
-            {list.map((student, index) => (
-              <li key={student.id} role="option" aria-selected={index === active}>
-                <button
-                  type="button"
-                  onMouseEnter={() => setActive(index)}
-                  onClick={() => go(student)}
-                  className={cn(
-                    "flex w-full items-center gap-3 px-4 py-3 text-left transition",
-                    index === active ? "bg-violet-500/15" : "hover:bg-white/5",
-                  )}
-                >
-                  <StudentAvatar name={student.name} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block font-semibold text-white">{student.name}</span>
-                    <span className="mt-0.5 block text-xs text-slate-400">
-                      Student ID: {student.studentIdentifier}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-slate-500">
-                      {student.className} • {student.section}
-                    </span>
-                  </span>
-                  <Badge tone={student.status === "ACTIVE" ? "green" : "amber"}>{student.status === "ACTIVE" ? "Active" : "Inactive"}</Badge>
-                  <span className="hidden items-center gap-1 text-xs text-violet-300 sm:inline-flex">
-                    View Profile
-                    <ChevronRight className="h-4 w-4" />
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+      <div className="mt-8 grid gap-3 md:grid-cols-[1fr_220px]">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by name, student ID, or roll number" className="pl-10" />
+        </div>
+        <select value={classId} onChange={(event) => setClassId(event.target.value)} className="input-select" aria-label="Filter by class">
+          <option value="all">All Classes</option>
+          {classOptions.map(([id, label]) => (
+            <option key={id} value={id}>{label}</option>
+          ))}
+        </select>
       </div>
 
-      <div className="mx-auto mt-16 max-w-xl text-center">
-        {emptyQuery ? (
-          <div className="rounded-3xl border border-dashed border-white/12 bg-[#11182A]/70 px-8 py-16">
-            <svg viewBox="0 0 160 100" className="mx-auto h-24 w-40 text-violet-400/80" aria-hidden>
-              <ellipse cx="80" cy="86" rx="48" ry="8" fill="rgba(124,58,237,0.18)" />
-              <rect x="38" y="28" width="84" height="52" rx="14" fill="#151D31" stroke="rgba(255,255,255,0.12)" />
-              <circle cx="68" cy="52" r="12" fill="none" stroke="currentColor" strokeWidth="3" />
-              <path d="M77 61 L90 74" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-              <path d="M108 40 h8 M108 48 h14 M108 56 h10" stroke="rgba(79,107,255,0.7)" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <p className="mt-6 text-lg font-semibold text-white">Search for a student</p>
-            <p className="mt-2 text-sm text-slate-400">
-              Search for a student to view complete academic performance.
-            </p>
+      {loading ? <CardSkeleton /> : null}
+      {!loading && failed ? (
+        <div className="mt-8 rounded-3xl border border-rose-400/20 bg-rose-500/10 px-6 py-12 text-center">
+          <p className="text-lg font-semibold text-white">Could not load students</p>
+          <button type="button" onClick={() => { setLoading(true); void load(); }} className="mt-3 text-sm text-violet-300">Try again</button>
+        </div>
+      ) : null}
+      {!loading && !failed && students.length === 0 ? (
+        <Empty title="No students yet" body="Students created in the system will appear here." />
+      ) : null}
+      {!loading && !failed && students.length > 0 && visible.length === 0 ? (
+        <Empty title="No students found in this class." body="Try another class or clear the search." />
+      ) : null}
+      {!loading && !failed && visible.length > 0 ? (
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {visible.map((student) => {
+            const classroom = classId === "all" ? student.classes?.[0] : student.classes?.find((item) => item.id === classId) ?? student.classes?.[0];
+            const section = classroom?.section || student.section;
+            const classLabel = classroom ? `${classroom.name}${section && section !== "—" ? `-${section}` : ""}` : student.className;
+            return (
+              <Link
+                key={student.id}
+                href={`${basePath}/students/${student.id}`}
+                className="group block overflow-hidden rounded-3xl border border-white/10 bg-[#11182A] shadow-[0_18px_50px_-36px_rgba(0,0,0,0.85)] transition duration-200 hover:-translate-y-0.5 hover:border-violet-400/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400"
+              >
+                <StudentImageReveal src={student.photoUrl} alt={student.name} variant="card" />
+                <div className="space-y-1 border-t border-white/8 p-4">
+                  <h2 className="truncate text-lg font-semibold text-white">{student.name}</h2>
+                  <p className="truncate text-xs text-slate-400">ID: {student.studentIdentifier}</p>
+                  <p className="truncate text-sm text-slate-300">Class: {classLabel}</p>
+                  <p className="truncate text-xs text-slate-500">Roll No: {student.rollNumber || "—"}</p>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Empty({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="mt-8 rounded-3xl border border-dashed border-white/12 bg-[#11182A]/70 px-8 py-16 text-center">
+      <p className="text-lg font-semibold text-white">{title}</p>
+      <p className="mt-2 text-sm text-slate-400">{body}</p>
+    </div>
+  );
+}
+
+function CardSkeleton() {
+  return (
+    <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {Array.from({ length: 8 }, (_, index) => (
+        <div key={index} className="overflow-hidden rounded-3xl border border-white/10 bg-[#11182A]">
+          <div className="h-44 animate-pulse bg-white/5" />
+          <div className="space-y-2 p-4">
+            <div className="h-4 w-2/3 animate-pulse rounded bg-white/10" />
+            <div className="h-3 w-1/2 animate-pulse rounded bg-white/8" />
+            <div className="h-3 w-1/3 animate-pulse rounded bg-white/8" />
           </div>
-        ) : null}
-        {noHits ? (
-          <div className="rounded-3xl border border-dashed border-white/12 bg-[#11182A]/70 px-8 py-16">
-            <p className="text-lg font-semibold text-white">Student not found.</p>
-            <p className="mt-2 text-sm text-slate-400">
-              Try searching using a different Student Name or Student ID.
-            </p>
-          </div>
-        ) : null}
-      </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -4,7 +4,6 @@ import { classService } from "@/services/class.service";
 import { analyticsService } from "@/services/analytics.service";
 import { Card } from "@/components/ui/card";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 
 export default async function ClassOverviewPage({
   params,
@@ -24,15 +23,7 @@ export default async function ClassOverviewPage({
 
   return (
     <div>
-      <div className="flex justify-end">
-        <Link
-          href={`/admin/exams/new?classId=${classId}&source=syllabus`}
-          className="rounded-xl bg-gradient-to-r from-[#7C3AED] to-[#4F6BFF] px-5 py-3 text-sm font-semibold text-white"
-        >
-          Generate Test
-        </Link>
-      </div>
-      <div className="mt-6 grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <p className="text-sm text-slate-500">Total Students</p>
           <p className="mt-2 text-3xl font-semibold">{cls._count.enrollments}</p>

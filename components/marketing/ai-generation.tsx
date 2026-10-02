@@ -80,8 +80,8 @@ export function AiGenerationSection() {
                 {["Select Class", "Select Subject", "Select Chapter"].map((label) => (
                   <label key={label} className="text-xs text-slate-400">
                     {label}
-                    <select className="mt-1 w-full rounded-xl border border-white/10 bg-[#0b1020] px-3 py-2 text-sm text-slate-200">
-                      <option>{label.replace("Select ", "")} 1</option>
+                    <select className="mt-1 w-full rounded-xl border border-white/10 bg-[#0b1020] px-3 py-2 text-sm text-slate-200" defaultValue="">
+                      <option value="">Choose when you create an exam</option>
                     </select>
                   </label>
                 ))}

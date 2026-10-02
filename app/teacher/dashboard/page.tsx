@@ -6,7 +6,6 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { PageHeader } from "@/components/layout/skeleton";
 import { Card } from "@/components/ui/card";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/layout/empty-state";
 
 export default async function TeacherDashboardPage() {
@@ -20,12 +19,7 @@ export default async function TeacherDashboardPage() {
     <div>
       <PageHeader
         title={`Welcome, ${user.name}`}
-        subtitle="Assigned classes, exams, and AI generation in one place."
-        actions={
-          <Link href="/teacher/generate">
-            <Button>Generate Questions</Button>
-          </Link>
-        }
+        subtitle="Assigned classes and exams in one place."
       />
       <div className="mt-8 grid gap-4 md:grid-cols-4">
         <StatCard label="Assigned Classes" value={classes.length} />
@@ -44,10 +38,10 @@ export default async function TeacherDashboardPage() {
             <h3 className="mt-1 text-lg font-semibold">{cls.name}</h3>
             <p className="mt-2 text-sm text-slate-400">{cls._count.enrollments} students · {cls._count.tests} exams</p>
             <Link
-              href="/teacher/generate"
+              href={`/teacher/classes/${cls.id}`}
               className="mt-4 inline-block text-sm font-medium text-violet-300 hover:text-violet-200"
             >
-              Generate questions <span aria-hidden>→</span>
+              Open classroom <span aria-hidden>→</span>
             </Link>
           </Card>
         ))}

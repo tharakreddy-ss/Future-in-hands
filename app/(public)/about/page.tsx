@@ -16,8 +16,7 @@ export default function AboutPage() {
             trustworthy system for question generation, shuffled papers, timed conduct, and performance insight.
           </p>
           <p>
-            Careers, blog, help center, privacy, and terms pages are on the way. For a demo, use Get Started or
-            write to us from the footer newsletter.
+            Help center, privacy, and terms pages are on the way. Reach the team from the contact link in the footer.
           </p>
         </FadeUp>
       </div>

@@ -79,6 +79,5 @@ export function navForRole(role: Role): NavItem[] {
 export function createActionFor(role: Role) {
   if (role === "SUPER_ADMIN") return { href: "/super-admin/institutions", label: "Add Institution" };
   if (role === "STUDENT") return { href: "/student/tests", label: "Start Mock Test" };
-  if (role === "TEACHER") return { href: "/teacher/generate", label: "Create Exam" };
-  return { href: "/admin/generate", label: "Create Exam" };
+  return null;
 }
