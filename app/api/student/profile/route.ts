@@ -2,6 +2,7 @@ import { z } from "zod";
 import { withAuth } from "@/lib/with-auth";
 import { createSession } from "@/lib/auth";
 import { studentService } from "@/services/student.service";
+import { gamificationService } from "@/services/gamification.service";
 import { errorJson, fullName, json } from "@/lib/utils";
 
 const emptyToNull = (value: string | undefined) => {
@@ -39,6 +40,7 @@ export async function PATCH(request: Request) {
       guardianName: emptyToNull(body.guardianName),
       guardianPhone: emptyToNull(body.guardianPhone),
     });
+    await gamificationService.recordProfileCompletionIfEligible(user.studentId);
     await createSession({
       ...user,
       name: fullName(body.firstName, body.lastName),

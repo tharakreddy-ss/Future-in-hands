@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getAuthSecret } from "@/lib/auth-secret";
 import { generateQuestions } from "@/lib/ai/question-generator";
+import { gamificationService } from "@/services/gamification.service";
 import { httpError, parseJson } from "@/lib/utils";
 import type { QuestionOption } from "@/types";
 
@@ -105,6 +106,7 @@ type StoredQuestion = PublicPracticeQuestion & {
 };
 
 type StoredSession = {
+  id: string;
   studentId: string;
   source: "BANK" | "AI";
   classId: string;
@@ -320,11 +322,12 @@ function libraryTopicNames(cls: PracticeClass, subjectId: string) {
   return link.subject.units.flatMap((unit) => unit.topics.map((topic) => topic.name));
 }
 
-async function persistSession(studentId: string, session: Omit<StoredSession, "studentId" | "expiresAt" | "results">) {
+async function persistSession(studentId: string, session: Omit<StoredSession, "id" | "studentId" | "expiresAt" | "results">) {
   pruneExpired();
   const sid = randomUUID();
   sessionStore().set(sid, {
     ...session,
+    id: sid,
     studentId,
     results: {},
     expiresAt: Date.now() + PRACTICE_TTL_MS,
@@ -590,6 +593,16 @@ export const practiceService = {
       explanation: question.explanation,
     };
     session.results[question.id] = result;
+    const results = Object.values(session.results);
+    if (session.id && results.length === session.questions.length) {
+      await gamificationService.recordPracticeCompleted({
+        studentId,
+        sessionId: session.id,
+        classId: session.classId,
+        questions: session.questions.length,
+        correct: results.filter((row) => row.correct).length,
+      });
+    }
     return result;
   },
 };

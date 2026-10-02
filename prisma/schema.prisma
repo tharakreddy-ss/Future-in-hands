@@ -104,6 +104,30 @@ enum AiUsageKind {
   QUESTION_VARIANT
 }
 
+enum StaffCategory {
+  TEACHING
+  NON_TEACHING
+  LIBRARY
+  SECURITY
+  MANAGEMENT
+  OTHER
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum PointActivity {
+  DAILY_ACTIVITY
+  PRACTICE_COMPLETED
+  EXAM_SUBMITTED
+  LIVE_EXAM_COMPLETED
+  PERFORMANCE_BONUS
+  STREAK_MILESTONE
+  PROFILE_COMPLETED
+}
+
 model Institution {
   id                 String             @id @default(cuid())
   name               String
@@ -115,6 +139,7 @@ model Institution {
   subscriptionPlan   Plan               @default(STARTER) @map("subscription_plan")
   subscriptionStatus SubscriptionStatus @default(TRIAL) @map("subscription_status")
   studentIdPrefix    String             @default("STU") @map("student_id_prefix")
+  staffIdPrefix      String             @default("EMP") @map("staff_id_prefix")
   createdAt          DateTime           @default(now()) @map("created_at")
   updatedAt          DateTime           @updatedAt @map("updated_at")
 
@@ -127,6 +152,8 @@ model Institution {
   aiUsage       AiUsage[]
   notifications Notification[]
   subjects      Subject[]
+  staff         Staff[]
+  pointEvents   StudentPointEvent[]
 
   @@map("institutions")
 }
@@ -139,11 +166,14 @@ model User {
   passwordHash   String   @map("password_hash")
   role           Role
   isActive       Boolean  @default(true) @map("is_active")
+  /// Bumped to revoke every session issued before a password reset.
+  sessionVersion Int      @default(0) @map("session_version")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   institution    Institution? @relation(fields: [institutionId], references: [id], onDelete: SetNull)
   student        Student?
+  staff          Staff?
   createdClasses Class[]      @relation("ClassCreatedBy")
   createdSyllabi Syllabus[]   @relation("SyllabusCreatedBy")
   createdTests   Test[]       @relation("TestCreatedBy")
@@ -179,10 +209,46 @@ model Student {
   assignments   TestAssignment[]
   attempts      StudentTestAttempt[]
   notifications Notification[]
+  pointEvents   StudentPointEvent[]
+  gamification  StudentGamification?
 
   @@index([institutionId])
   @@index([institutionId, academicYear])
   @@map("students")
+}
+
+model Staff {
+  id                       String        @id @default(cuid())
+  institutionId            String        @map("institution_id")
+  userId                   String?       @unique @map("user_id")
+  staffNumber              String        @map("staff_number")
+  firstName                String        @map("first_name")
+  lastName                 String        @map("last_name")
+  photoKey                 String?       @map("photo_key")
+  category                 StaffCategory
+  designation              String
+  department               String?
+  qualification            String?
+  email                    String?
+  phone                    String?
+  dateOfBirth              DateTime?     @map("date_of_birth")
+  gender                   String?
+  joiningDate              DateTime?     @map("joining_date")
+  address                  String?
+  emergencyContactName     String?       @map("emergency_contact_name")
+  emergencyContactPhone    String?       @map("emergency_contact_phone")
+  emergencyContactRelation String?       @map("emergency_contact_relation")
+  status                   StaffStatus   @default(ACTIVE)
+  createdAt                DateTime      @default(now()) @map("created_at")
+  updatedAt                DateTime      @updatedAt @map("updated_at")
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([institutionId, staffNumber])
+  @@index([institutionId, category])
+  @@index([institutionId, status])
+  @@map("staff")
 }
 
 model Class {
@@ -538,4 +604,52 @@ model AiUsage {
 
   @@index([institutionId, createdAt])
   @@map("ai_usage")
+}
+
+/// Failed-login counters. `key` is a SHA-256 of "account:<login>" or "ip:<address>", never the raw value.
+model LoginThrottle {
+  key         String   @id
+  failures    Int      @default(0)
+  windowStart DateTime @map("window_start")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([updatedAt])
+  @@map("login_throttles")
+}
+
+/// Append-only ledger of awarded points. `eventKey` makes every award idempotent.
+model StudentPointEvent {
+  id            String        @id @default(cuid())
+  studentId     String        @map("student_id")
+  institutionId String        @map("institution_id")
+  activity      PointActivity
+  points        Int
+  eventKey      String        @unique @map("event_key")
+  sourceId      String?       @map("source_id")
+  occurredAt    DateTime      @map("occurred_at")
+  metadata      Json?
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, occurredAt])
+  @@index([studentId, activity, occurredAt])
+  @@map("student_point_events")
+}
+
+/// Cached totals derived from the ledger plus rolling 24-hour streak state.
+model StudentGamification {
+  studentId       String    @id @map("student_id")
+  totalPoints     Int       @default(0) @map("total_points")
+  currentStreak   Int       @default(0) @map("current_streak")
+  longestStreak   Int       @default(0) @map("longest_streak")
+  lastActivityAt  DateTime? @map("last_activity_at")
+  streakStartedAt DateTime? @map("streak_started_at")
+  lastPointsAt    DateTime? @map("last_points_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("student_gamification")
 }

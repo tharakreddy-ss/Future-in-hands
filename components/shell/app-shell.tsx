@@ -32,7 +32,7 @@ import { createActionFor, type NavItem, type NavKey } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import type { Role } from "@prisma/client";
 
-const ICONS: Record<NavKey, typeof LayoutDashboard> = {
+export const ICONS: Record<NavKey, typeof LayoutDashboard> = {
   dashboard: LayoutDashboard,
   classes: GraduationCap,
   subjects: Layers,

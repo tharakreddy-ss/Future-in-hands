@@ -108,6 +108,23 @@ export const studentService = {
   enroll(classId: string, studentId: string) {
     return studentRepository.enroll(classId, studentId);
   },
+  portalContext(studentId: string) {
+    return db.student.findUnique({
+      where: { id: studentId },
+      select: {
+        firstName: true,
+        lastName: true,
+        studentIdentifier: true,
+        academicYear: true,
+        photoKey: true,
+        enrollments: {
+          orderBy: [{ joinedAt: "desc" }, { id: "asc" }],
+          take: 1,
+          select: { class: { select: { name: true, academicYear: true } } },
+        },
+      },
+    });
+  },
   enrollmentCount(studentId: string) {
     return db.classStudent.count({ where: { studentId } });
   },

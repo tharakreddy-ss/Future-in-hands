@@ -9,11 +9,13 @@ export function StartTestButton({
   attemptId,
   status,
   window,
+  labels,
 }: {
   assignmentId: string;
   attemptId?: string;
   status?: string;
   window?: "LOCKED" | "LIVE" | "CLOSED";
+  labels?: { start?: string; resume?: string };
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -67,7 +69,7 @@ export function StartTestButton({
   return (
     <div className="text-right">
       <Button onClick={start} disabled={pending}>
-        {pending ? "Starting…" : attemptId ? "Continue exam" : "Start exam"}
+        {pending ? "Starting…" : attemptId ? labels?.resume ?? "Continue exam" : labels?.start ?? "Start exam"}
       </Button>
       {error ? <p className="mt-1 text-xs text-red-600">{error}</p> : null}
     </div>

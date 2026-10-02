@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { withAuth } from "@/lib/with-auth";
 import { studentService } from "@/services/student.service";
+import { gamificationService } from "@/services/gamification.service";
 import { errorJson } from "@/lib/utils";
 import { readPrivateObject, savePrivateObject } from "@/lib/private-storage";
 
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
     if (photo.size > PHOTO_LIMIT) return errorJson("Photo must be 5 MB or smaller.", 413);
     const photoKey = await savePrivateObject("student-photos", `${randomUUID()}.${extension}`, photo, photo.type);
     await studentService.setOwnPhoto(user.studentId, photoKey);
+    await gamificationService.recordProfileCompletionIfEligible(user.studentId);
     return Response.json({ ok: true });
   }, ["STUDENT"]);
 }
