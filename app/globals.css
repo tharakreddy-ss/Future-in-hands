@@ -170,6 +170,11 @@ a[href]:active {
   transform: scale(0.985);
 }
 
+[data-static-controls] a[href],
+[data-static-controls] button {
+  transform: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

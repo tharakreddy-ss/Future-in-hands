@@ -1,5 +1,6 @@
 import { attemptDeadline } from "@/lib/attempt-deadline";
 import { db } from "@/lib/db";
+import { gamificationService } from "@/services/gamification.service";
 
 const attemptReviewInclude = {
   student: true,
@@ -16,7 +17,8 @@ const attemptReviewInclude = {
 
 export const resultService = {
   async grade(attemptId: string) {
-    return db.$transaction(async (tx) => {
+    let newlySubmitted = false;
+    const graded = await db.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM student_test_attempts WHERE id = ${attemptId} FOR UPDATE`;
       const attempt = await tx.studentTestAttempt.findUnique({
         where: { id: attemptId },
@@ -82,8 +84,11 @@ export const resultService = {
         data: { status: "COMPLETED" },
       });
 
+      newlySubmitted = true;
       return updated;
     });
+    if (newlySubmitted) await gamificationService.recordExamAttemptSafely(graded.id);
+    return graded;
   },
   getByAttempt(attemptId: string) {
     return db.studentTestAttempt.findUnique({

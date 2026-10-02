@@ -118,6 +118,16 @@ enum StaffStatus {
   INACTIVE
 }
 
+enum PointActivity {
+  DAILY_ACTIVITY
+  PRACTICE_COMPLETED
+  EXAM_SUBMITTED
+  LIVE_EXAM_COMPLETED
+  PERFORMANCE_BONUS
+  STREAK_MILESTONE
+  PROFILE_COMPLETED
+}
+
 model Institution {
   id                 String             @id @default(cuid())
   name               String
@@ -143,6 +153,7 @@ model Institution {
   notifications Notification[]
   subjects      Subject[]
   staff         Staff[]
+  pointEvents   StudentPointEvent[]
 
   @@map("institutions")
 }
@@ -198,6 +209,8 @@ model Student {
   assignments   TestAssignment[]
   attempts      StudentTestAttempt[]
   notifications Notification[]
+  pointEvents   StudentPointEvent[]
+  gamification  StudentGamification?
 
   @@index([institutionId])
   @@index([institutionId, academicYear])
@@ -602,4 +615,41 @@ model LoginThrottle {
 
   @@index([updatedAt])
   @@map("login_throttles")
+}
+
+/// Append-only ledger of awarded points. `eventKey` makes every award idempotent.
+model StudentPointEvent {
+  id            String        @id @default(cuid())
+  studentId     String        @map("student_id")
+  institutionId String        @map("institution_id")
+  activity      PointActivity
+  points        Int
+  eventKey      String        @unique @map("event_key")
+  sourceId      String?       @map("source_id")
+  occurredAt    DateTime      @map("occurred_at")
+  metadata      Json?
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  student     Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, occurredAt])
+  @@index([studentId, activity, occurredAt])
+  @@map("student_point_events")
+}
+
+/// Cached totals derived from the ledger plus rolling 24-hour streak state.
+model StudentGamification {
+  studentId       String    @id @map("student_id")
+  totalPoints     Int       @default(0) @map("total_points")
+  currentStreak   Int       @default(0) @map("current_streak")
+  longestStreak   Int       @default(0) @map("longest_streak")
+  lastActivityAt  DateTime? @map("last_activity_at")
+  streakStartedAt DateTime? @map("streak_started_at")
+  lastPointsAt    DateTime? @map("last_points_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("student_gamification")
 }

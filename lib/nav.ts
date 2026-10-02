@@ -22,6 +22,8 @@ export type NavKey =
 
 export type NavItem = { href: string; label: string; icon: NavKey; activePrefixes?: string[] };
 
+export const STUDENT_SIDEBAR_COOKIE = "student_sidebar";
+
 export function navForRole(role: Role): NavItem[] {
   if (role === "SUPER_ADMIN") {
     return [
@@ -68,7 +70,6 @@ export function navForRole(role: Role): NavItem[] {
   }
   return [
     { href: "/student/dashboard", label: "Dashboard", icon: "dashboard" },
-    { href: "/student/classes", label: "Classes", icon: "classes" },
     { href: "/student/tests", label: "Exams", icon: "exams" },
     { href: "/student/practice", label: "Practice", icon: "practice" },
     { href: "/student/results", label: "Results", icon: "reports" },

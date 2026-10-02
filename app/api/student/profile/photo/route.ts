@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { withAuth } from "@/lib/with-auth";
 import { studentService } from "@/services/student.service";
+import { gamificationService } from "@/services/gamification.service";
 import { errorJson } from "@/lib/utils";
 import { readPrivateObject, savePrivateObject } from "@/lib/private-storage";
 import { validUploadSignature } from "@/lib/upload-validation";
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
     if (!validUploadSignature(bytes, photo.type)) return errorJson("Photo file does not match its image type.", 400);
     const photoKey = await savePrivateObject("student-photos", `${randomUUID()}.${extension}`, bytes, photo.type);
     await studentService.setOwnPhoto(user.studentId, photoKey);
+    await gamificationService.recordProfileCompletionIfEligible(user.studentId);
     return Response.json({ ok: true });
   }, ["STUDENT"]);
 }
